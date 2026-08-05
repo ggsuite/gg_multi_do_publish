@@ -17,28 +17,6 @@ import 'package:path/path.dart' as path;
 import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
 
-/// Typedef for running processes (for injection & tests).
-typedef ProcessRunner =
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> arguments, {
-      String? workingDirectory,
-    });
-
-/// Default process runner that uses the system's `Process.run`
-// coverage:ignore-start
-Future<ProcessResult> _defaultProcessRunner(
-  String executable,
-  List<String> arguments, {
-  String? workingDirectory,
-}) => Process.run(
-  executable,
-  arguments,
-  workingDirectory: workingDirectory,
-  runInShell: true,
-);
-// coverage:ignore-end
-
 /// Command to check if all repos in the ticket can be published.
 class CanPublishCommand extends DirCommand<void> {
   /// Constructor
@@ -61,7 +39,7 @@ class CanPublishCommand extends DirCommand<void> {
        _ggPubGetOffline = ggPubGetOffline ?? gg.PubGetOffline(ggLog: ggLog),
        _sortedProcessingList =
            sortedProcessingList ?? SortedProcessingList(ggLog: ggLog),
-       _processRunner = processRunner ?? _defaultProcessRunner,
+       _processRunner = processRunner ?? defaultProcessRunner,
        _didCommitCommand = didCommitCommand ?? DidCommitCommand(ggLog: ggLog),
        _doPushCommand = doPushCommand ?? DoPushCommand(ggLog: ggLog) {
     _addArgs();

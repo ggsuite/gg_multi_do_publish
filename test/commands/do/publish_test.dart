@@ -7059,6 +7059,7 @@ class MockProcessRunner extends Mock {
     List<String> arguments, {
     String? workingDirectory,
     Map<String, String>? environment,
+    bool? runInShell,
   });
 }
 
@@ -7194,13 +7195,7 @@ DoPublishCommand makePublishCommand({
   gg.DoPublish? ggDoPublish,
   gg.DidPublish? ggDidPublish,
   SortedProcessingList? sortedProcessingList,
-  Future<ProcessResult> Function(
-    String,
-    List<String>, {
-    String? workingDirectory,
-    Map<String, String>? environment,
-  })?
-  processRunner,
+  ProcessRunner? processRunner,
   CanPublishCommand? canPublishCommand,
   DidReviewCommand? didReviewCommand,
   GetVersion? getVersionCommand,

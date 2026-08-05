@@ -9,6 +9,6 @@ library;
 export 'src/backend/ensure_in_registry.dart';
 export 'src/backend/npm_registry_checker.dart';
 export 'src/backend/pub_dev_checker.dart';
-export 'src/commands/can/publish.dart' hide ProcessRunner;
+export 'src/commands/can/publish.dart';
 export 'src/commands/do/configure_publish.dart';
 export 'src/commands/do/publish.dart';
