@@ -27,15 +27,6 @@ import 'package:gg_multi_commit/gg_multi_commit.dart';
 import 'package:gg_multi_do_publish/src/commands/do/configure_publish.dart'
     show DoConfigurePublishCommand;
 
-/// Typedef for running processes (for injection & tests).
-typedef ProcessRunner =
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> arguments, {
-      String? workingDirectory,
-      Map<String, String>? environment,
-    });
-
 /// Snapshot of a repository's state taken before its publish starts.
 class _RepoPublishSnapshot {
   _RepoPublishSnapshot({
@@ -186,7 +177,7 @@ class DoPublishCommand extends DirCommand<void> {
        _interactAdapter = interactAdapter ?? gg.DefaultInteractAdapter(),
        // coverage:ignore-end
        _hasTerminal = hasTerminal ?? gg.defaultHasTerminal,
-       _processRunner = processRunner ?? _defaultProcessRunner {
+       _processRunner = processRunner ?? defaultProcessRunner {
     _addArgs();
   }
 
@@ -1775,25 +1766,6 @@ class DoPublishCommand extends DirCommand<void> {
       await runStep('dart', <String>['pub', 'upgrade'], null);
     }
   }
-
-  /// Runs system processes with shell support.
-  // coverage:ignore-start
-  static Future<ProcessResult> _defaultProcessRunner(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-    Map<String, String>? environment,
-  }) {
-    return Process.run(
-      executable,
-      arguments,
-      workingDirectory: workingDirectory,
-      environment: environment,
-      runInShell: true,
-    );
-  }
-
-  // coverage:ignore-end
 
   // Adds command line arguments
   void _addArgs() {

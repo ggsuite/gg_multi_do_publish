@@ -1297,5 +1297,7 @@ class MockProcessRunner extends Mock {
     String executable,
     List<String> arguments, {
     String? workingDirectory,
+    Map<String, String>? environment,
+    bool? runInShell,
   });
 }

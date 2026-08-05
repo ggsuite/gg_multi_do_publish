@@ -18,9 +18,6 @@ import 'package:pub_semver/pub_semver.dart';
 
 import 'package:gg_multi_core/gg_multi_core.dart';
 
-/// Typedef for editing a merge message interactively.
-typedef EditMessage = Future<String?> Function(String initialMessage);
-
 /// Interactively builds the `.gg/gg-publish.json` publish configuration for
 /// the current ticket, asking for the version increment and merge message of
 /// every repo up front. `do publish` runs this automatically when no
