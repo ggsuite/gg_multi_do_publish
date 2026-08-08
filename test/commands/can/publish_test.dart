@@ -189,6 +189,7 @@ void main() {
           () => mockGgCanPublish.exec(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
         when(
@@ -457,6 +458,7 @@ void main() {
         () => mockGgCanPublish.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -479,6 +481,7 @@ void main() {
         () => mockGgCanPublish.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          options: any(named: 'options'),
         ),
       ).called(2);
       expect(messages.any((m) => m.contains('A')), isTrue);
@@ -910,6 +913,7 @@ void main() {
           () => mockGgCanPublish.exec(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((invocation) {
           final repoDir = invocation.namedArguments[#directory] as Directory;
@@ -1011,6 +1015,7 @@ void main() {
         () => mockGgCanPublish.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -1118,6 +1123,7 @@ void main() {
         () => mockGgCanPublish.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          options: any(named: 'options'),
         ),
         () => mockGgNpmLoggedIn.exec(
           directory: any(named: 'directory'),
@@ -1156,6 +1162,7 @@ void main() {
           () => mockGgCanPublish.exec(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            options: any(named: 'options'),
           ),
         );
         expect(messages.any((m) => m.contains('Can merge?')), isTrue);
@@ -1180,6 +1187,64 @@ void main() {
       });
     });
 
+    group('--no-pana', () {
+      /// The options every »gg can publish« of the run was called with.
+      List<Map<String, dynamic>> capturedOptions() => verify(
+        () => mockGgCanPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          options: captureAny(named: 'options'),
+        ),
+      ).captured.cast<Map<String, dynamic>>();
+
+      test('forwards pana: false from the command line', () async {
+        final runner = CommandRunner<void>('test', 'can publish ticket')
+          ..addCommand(command());
+        await runner.run(['publish', '--no-pana', '--input', ticketDir.path]);
+
+        expect(capturedOptions(), [
+          {gg.panaOption: false},
+          {gg.panaOption: false},
+        ]);
+      });
+
+      test('forwards pana: true by default', () async {
+        final runner = CommandRunner<void>('test', 'can publish ticket')
+          ..addCommand(command());
+        await runner.run(['publish', '--input', ticketDir.path]);
+
+        expect(capturedOptions(), [
+          {gg.panaOption: true},
+          {gg.panaOption: true},
+        ]);
+      });
+
+      test('forwards pana: false from the exec options', () async {
+        await command().exec(
+          directory: ticketDir,
+          ggLog: ggLog,
+          options: const <String, dynamic>{gg.panaOption: false},
+        );
+
+        expect(capturedOptions(), [
+          {gg.panaOption: false},
+          {gg.panaOption: false},
+        ]);
+      });
+
+      test('checkRepo() forwards its pana parameter', () async {
+        await command().checkRepo(
+          directory: repoDir('A'),
+          ggLog: ggLog,
+          pana: false,
+        );
+
+        expect(capturedOptions(), [
+          {gg.panaOption: false},
+        ]);
+      });
+    });
+
     test('get() still runs the complete check', () async {
       final runner = CommandRunner<void>('test', 'can publish ticket')
         ..addCommand(command());
@@ -1189,6 +1254,7 @@ void main() {
         () => mockGgCanPublish.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          options: any(named: 'options'),
         ),
       ).called(2);
       verify(
@@ -1235,6 +1301,7 @@ void main() {
         () => mockGgCanPublish.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          options: any(named: 'options'),
         ),
       );
     });
@@ -1248,6 +1315,7 @@ void main() {
           () => mockGgCanPublish.exec(
             directory: dir,
             ggLog: any(named: 'ggLog'),
+            options: any(named: 'options'),
           ),
         ).called(1);
         expect(messages.first.split('\n'), ['', 'A']);
@@ -1258,6 +1326,7 @@ void main() {
           () => mockGgCanPublish.exec(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            options: any(named: 'options'),
           ),
         ).thenThrow(Exception('pana failed'));
 
@@ -1284,6 +1353,7 @@ void main() {
           () => mockGgCanPublish.exec(
             directory: loneRepo,
             ggLog: any(named: 'ggLog'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       });
