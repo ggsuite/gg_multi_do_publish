@@ -74,6 +74,7 @@ class CanPublishCommand extends DirCommand<void> {
     required Directory directory,
     required GgLog ggLog,
     bool? verbose,
+    Map<String, dynamic> options = const {},
   }) => get(directory: directory, ggLog: ggLog, verbose: verbose);
 
   @override

@@ -293,6 +293,7 @@ class DoPublishCommand extends DirCommand<void> {
     bool? verbose,
     bool? deleteRemoteBranch,
     bool? mergeOnly,
+    Map<String, dynamic> options = const {},
   }) => get(
     directory: directory,
     ggLog: ggLog,
