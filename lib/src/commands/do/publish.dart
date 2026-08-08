@@ -300,6 +300,7 @@ class DoPublishCommand extends DirCommand<void> {
     verbose: verbose,
     deleteRemoteBranch: deleteRemoteBranch,
     mergeOnly: mergeOnly,
+    pana: options[gg.panaOption] as bool?,
   );
 
   @override
@@ -309,6 +310,7 @@ class DoPublishCommand extends DirCommand<void> {
     bool? verbose,
     bool? deleteRemoteBranch,
     bool? mergeOnly,
+    bool? pana,
   }) async {
     ggLog(cH1('Publishing ...'));
 
@@ -323,6 +325,9 @@ class DoPublishCommand extends DirCommand<void> {
     final continueRun = argResults?['continue'] as bool? ?? false;
     final restart = argResults?['restart'] as bool? ?? false;
     final publishUnchanged = argResults?['publish-unchanged'] as bool? ?? false;
+    // Turns the pana analysis of every »can publish« off — the ticket wide
+    // one, the per-repo gate and the one inside gg_one's »do publish«.
+    final usePana = pana ?? (argResults?[gg.panaOption] as bool? ?? true);
     final force = this.mergeOnly && (argResults?['force'] as bool? ?? false);
     final String? configArg = argResults?['config'] as String?;
     final String? messageArg = argResults?['message'] as String?;
@@ -452,6 +457,7 @@ class DoPublishCommand extends DirCommand<void> {
         await _canPublishCommand.checkTicket(
           directory: ticketDir,
           ggLog: ggLog,
+          pana: usePana,
           includeCanPublish: false,
         );
       } on MergeConflictException {
@@ -544,6 +550,7 @@ class DoPublishCommand extends DirCommand<void> {
             resume: continueRun,
             pr: prArg,
             force: force,
+            pana: usePana,
             verbose: verbose,
             ggLog: ggLog,
             taskLog: taskLog,
@@ -902,6 +909,7 @@ class DoPublishCommand extends DirCommand<void> {
     required bool resume,
     required bool? pr,
     required bool force,
+    required bool pana,
     required bool verbose,
     required GgLog ggLog,
     required GgLog taskLog,
@@ -986,7 +994,11 @@ class DoPublishCommand extends DirCommand<void> {
     // now trip over — so a resume skips it and gg_one continues at its own
     // first open step.
     if (!skipValidation) {
-      await _canPublishCommand.checkRepo(directory: repoDir, ggLog: ggLog);
+      await _canPublishCommand.checkRepo(
+        directory: repoDir,
+        ggLog: ggLog,
+        pana: pana,
+      );
     }
 
     // Push
@@ -1032,6 +1044,7 @@ class DoPublishCommand extends DirCommand<void> {
       pr: pr,
       mergeOnly: mergeOnly,
       force: force,
+      options: <String, dynamic>{gg.panaOption: pana},
     );
   }
 
@@ -1782,6 +1795,12 @@ class DoPublishCommand extends DirCommand<void> {
     argParser.addFlag(
       'delete-remote-branch',
       help: 'Delete the remote feature branches (default)',
+      defaultsTo: true,
+      negatable: true,
+    );
+    argParser.addFlag(
+      gg.panaOption,
+      help: 'Run »dart run pana« as part of »can publish«.',
       defaultsTo: true,
       negatable: true,
     );

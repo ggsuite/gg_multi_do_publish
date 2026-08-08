@@ -263,6 +263,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       ).thenThrow(Exception('stop after can publish'));
@@ -298,6 +299,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       ]);
@@ -368,6 +370,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       );
@@ -391,6 +394,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       ).thenThrow(
@@ -538,6 +542,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -776,6 +781,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -957,6 +963,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
         when(
@@ -1019,6 +1026,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       },
@@ -1117,6 +1125,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -1184,6 +1193,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).called(1);
 
@@ -1205,6 +1215,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -1295,6 +1306,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -1357,6 +1369,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -1454,6 +1467,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -1542,6 +1556,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       ).thenThrow(Exception('can publish failed'));
@@ -1693,6 +1708,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((invocation) {
           final repoDir = invocation.namedArguments[#directory] as Directory;
@@ -1898,6 +1914,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -2064,6 +2081,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -2226,6 +2244,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
         when(
@@ -2385,6 +2404,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -2531,6 +2551,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -2908,6 +2929,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
         when(
@@ -3059,6 +3081,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -3232,6 +3255,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -3413,6 +3437,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -3549,6 +3574,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenThrow(Exception('publish failed'));
     }
@@ -3801,6 +3827,7 @@ void main() {
         () => mockCanPublishCommand.checkRepo(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          pana: any(named: 'pana'),
         ),
       ).thenThrow(Exception('Cannot publish: A (Exception: pana failed)'));
 
@@ -3863,6 +3890,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       );
     });
@@ -4567,6 +4595,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -4650,6 +4679,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       },
@@ -4721,6 +4751,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).called(1);
         // Review + can-publish are skipped when resuming.
@@ -4819,6 +4850,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).called(1);
       verifyNever(
@@ -4945,6 +4977,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).called(1);
         // The repo-level runtime file was gitignored before the pre-publish
@@ -5000,6 +5033,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -5026,6 +5060,7 @@ void main() {
           pr: false,
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -5049,6 +5084,7 @@ void main() {
             pr: null,
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       },
@@ -5192,6 +5228,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       },
@@ -5235,6 +5272,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -5380,6 +5418,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -5507,6 +5546,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
       expect(publishedDirs, hasLength(1));
@@ -5857,6 +5897,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            options: any(named: 'options'),
           ),
         ]);
 
@@ -6004,6 +6045,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
       expect(publishedDirs.map((d) => path.basename(d.path)), ['A', 'B']);
@@ -6026,6 +6068,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenThrow(Exception('registry down'));
 
@@ -6097,6 +6140,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
       expect(publishedDirs.map((d) => path.basename(d.path)), ['A']);
@@ -6217,6 +6261,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -6317,6 +6362,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: false,
+          options: any(named: 'options'),
         ),
       ).called(2);
 
@@ -6341,6 +6387,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: false,
+          options: any(named: 'options'),
         ),
       ).called(2);
 
@@ -6417,6 +6464,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: true,
+          options: any(named: 'options'),
         ),
       ).called(2);
     });
@@ -6482,6 +6530,7 @@ void main() {
           () => mockCanPublishCommand.checkRepo(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            pana: any(named: 'pana'),
           ),
         ).thenAnswer((invocation) {
           final dir = invocation.namedArguments[#directory] as Directory;
@@ -6501,6 +6550,7 @@ void main() {
           () => mockCanPublishCommand.checkRepo(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            pana: any(named: 'pana'),
           ),
         ).called(2);
 
@@ -6535,6 +6585,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenThrow(Exception('merge failed'));
 
@@ -6675,6 +6726,7 @@ void main() {
         () => mockCanPublishCommand.checkRepo(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          pana: any(named: 'pana'),
         ),
       ).thenAnswer((i) async => calls.add('gate:${repoOf(i)}'));
 
@@ -6700,6 +6752,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((i) async => calls.add('publish:${repoOf(i)}'));
 
@@ -6767,6 +6820,7 @@ void main() {
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             verbose: any(named: 'verbose'),
+            pana: any(named: 'pana'),
             includeCanPublish: false,
           ),
         ).called(1);
@@ -6774,10 +6828,106 @@ void main() {
           () => mockCanPublishCommand.checkRepo(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            pana: any(named: 'pana'),
           ),
         ).called(2);
       },
     );
+
+    group('--no-pana', () {
+      /// The pana values the two halves of the gate were called with.
+      List<bool?> panaOfGate() => [
+        ...verify(
+          () => mockCanPublishCommand.checkTicket(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            verbose: any(named: 'verbose'),
+            pana: captureAny(named: 'pana'),
+            includeCanPublish: any(named: 'includeCanPublish'),
+          ),
+        ).captured.cast<bool?>(),
+        ...verify(
+          () => mockCanPublishCommand.checkRepo(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            pana: captureAny(named: 'pana'),
+          ),
+        ).captured.cast<bool?>(),
+      ];
+
+      /// The options gg_one's »do publish« was called with per repo.
+      List<Map<String, dynamic>> panaOfGgDoPublish() => verify(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          options: captureAny(named: 'options'),
+        ),
+      ).captured.cast<Map<String, dynamic>>();
+
+      test('turns pana off everywhere it is checked', () async {
+        await buildRunner().run([
+          'publish',
+          '--no-pana',
+          '--input',
+          ticketDir.path,
+        ]);
+
+        // checkTicket once, checkRepo per repo.
+        expect(panaOfGate(), [false, false, false]);
+        expect(panaOfGgDoPublish(), [
+          {gg.panaOption: false},
+          {gg.panaOption: false},
+        ]);
+      });
+
+      test('runs pana by default', () async {
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        expect(panaOfGate(), [true, true, true]);
+        expect(panaOfGgDoPublish(), [
+          {gg.panaOption: true},
+          {gg.panaOption: true},
+        ]);
+      });
+
+      test('takes the value from the exec options', () async {
+        await makePublishCommand(
+          ggLog: ggLog,
+          ensureInRegistry: mockEnsureInRegistry,
+          ggDoPublish: mockGgDoPublish,
+          ggDoCommit: mockGgDoCommit,
+          ggDoPush: mockGgDoPush,
+          unlocalizeRefs: mockUnlocalizeRefs,
+          restorePublishTo: mockRestorePublishTo,
+          sortedProcessingList: mockSortedProcessingList,
+          processRunner: mockProcessRunner.call,
+          canPublishCommand: mockCanPublishCommand,
+          didReviewCommand: mockDidReviewCommand,
+          getVersionCommand: mockGetVersion,
+          setRefVersionCommand: mockSetRefVersion,
+          getRefVersionCommand: mockGetRefVersion,
+          pubDevChecker: mockPubDevChecker,
+          ggDoUpgradeDeps: mockUpgradeDeps,
+          ggCanCommit: mockGgCanCommit,
+        ).exec(
+          directory: ticketDir,
+          ggLog: ggLog,
+          options: const <String, dynamic>{gg.panaOption: false},
+        );
+
+        expect(panaOfGate(), [false, false, false]);
+      });
+    });
 
     test('checks a repo after its refs point at pub.dev and after its '
         'dependencies were published', () async {
@@ -6813,6 +6963,7 @@ void main() {
         () => mockCanPublishCommand.checkRepo(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          pana: any(named: 'pana'),
         ),
       ).thenAnswer((invocation) async {
         final log = invocation.namedArguments[#ggLog] as void Function(String);
@@ -6830,6 +6981,7 @@ void main() {
         () => mockCanPublishCommand.checkRepo(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          pana: any(named: 'pana'),
         ),
       ).thenAnswer((i) async {
         calls.add('gate:${repoOf(i)}');
@@ -7073,6 +7225,7 @@ void stubCanPublish(MockCanPublishCommand mock) {
       directory: any(named: 'directory'),
       ggLog: any(named: 'ggLog'),
       verbose: any(named: 'verbose'),
+      pana: any(named: 'pana'),
       includeCanPublish: any(named: 'includeCanPublish'),
     ),
   ).thenAnswer((_) async {});
@@ -7081,6 +7234,7 @@ void stubCanPublish(MockCanPublishCommand mock) {
     () => mock.checkRepo(
       directory: any(named: 'directory'),
       ggLog: any(named: 'ggLog'),
+      pana: any(named: 'pana'),
     ),
   ).thenAnswer((_) async {});
 }

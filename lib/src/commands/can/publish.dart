@@ -75,14 +75,25 @@ class CanPublishCommand extends DirCommand<void> {
     required GgLog ggLog,
     bool? verbose,
     Map<String, dynamic> options = const {},
-  }) => get(directory: directory, ggLog: ggLog, verbose: verbose);
+  }) => get(
+    directory: directory,
+    ggLog: ggLog,
+    verbose: verbose,
+    pana: options[gg.panaOption] as bool?,
+  );
 
   @override
   Future<void> get({
     required Directory directory,
     required GgLog ggLog,
     bool? verbose,
-  }) => checkTicket(directory: directory, ggLog: ggLog, verbose: verbose);
+    bool? pana,
+  }) => checkTicket(
+    directory: directory,
+    ggLog: ggLog,
+    verbose: verbose,
+    pana: pana,
+  );
 
   /// Runs the ticket wide publish readiness checks for [directory].
   ///
@@ -91,13 +102,18 @@ class CanPublishCommand extends DirCommand<void> {
   /// `false` and calls [checkRepo] per repo instead: only there are the refs
   /// unlocalized and the dependencies published earlier in the same run
   /// already on their registry, so pana can resolve them.
+  ///
+  /// [pana] turns the pana analysis inside `gg can publish` off; it defaults to
+  /// `--[no-]pana` from the command line, which in turn defaults to running it.
   Future<void> checkTicket({
     required Directory directory,
     required GgLog ggLog,
     bool? verbose,
+    bool? pana,
     bool includeCanPublish = true,
   }) async {
     verbose ??= argResults?['verbose'] as bool? ?? false;
+    pana ??= _panaFromArgs;
 
     // Step 1: Detect ticket folder -----------------------------------------
     final String? ticketPath = WorkspaceUtils.detectTicketPath(
@@ -182,7 +198,9 @@ class CanPublishCommand extends DirCommand<void> {
         message: 'Can publish?',
         ggLog: ggLog,
         dark: true,
-      ).run(() async => _checkCanPublish(subs: subs, ggLog: taskLog));
+      ).run(
+        () async => _checkCanPublish(subs: subs, ggLog: taskLog, pana: pana!),
+      );
     }
 
     // All successful --------------------------------------------------------
@@ -202,8 +220,13 @@ class CanPublishCommand extends DirCommand<void> {
   Future<void> checkRepo({
     required Directory directory,
     required GgLog ggLog,
+    bool? pana,
   }) async {
-    final failure = await _canPublishFailure(repoDir: directory, ggLog: ggLog);
+    final failure = await _canPublishFailure(
+      repoDir: directory,
+      ggLog: ggLog,
+      pana: pana ?? _panaFromArgs,
+    );
     if (failure != null) {
       throw Exception(cDetail('Cannot publish.'));
     }
@@ -353,11 +376,16 @@ class CanPublishCommand extends DirCommand<void> {
   Future<String?> _canPublishFailure({
     required Directory repoDir,
     required GgLog ggLog,
+    required bool pana,
   }) async {
     final repoName = path.basename(repoDir.path);
     ggLog('\n${cH1(repoName)}');
     try {
-      await _ggCanPublish.exec(directory: repoDir, ggLog: ggLog);
+      await _ggCanPublish.exec(
+        directory: repoDir,
+        ggLog: ggLog,
+        options: <String, dynamic>{gg.panaOption: pana},
+      );
       return null;
     } catch (e) {
       // The reason is printed once, right under the repo it belongs to.
@@ -372,12 +400,14 @@ class CanPublishCommand extends DirCommand<void> {
   Future<void> _checkCanPublish({
     required List<Node> subs,
     required GgLog ggLog,
+    required bool pana,
   }) async {
     final failedRepos = <String>[];
     for (final repo in subs) {
       final failure = await _canPublishFailure(
         repoDir: repo.directory,
         ggLog: ggLog,
+        pana: pana,
       );
       if (failure != null) {
         failedRepos.add(failure);
@@ -440,8 +470,18 @@ class CanPublishCommand extends DirCommand<void> {
     }
   }
 
+  /// Whether `--[no-]pana` was given; pana runs unless it was turned off.
+  bool get _panaFromArgs => argResults?[gg.panaOption] as bool? ?? true;
+
   // Adds command line arguments
   void _addArgs() {
+    argParser.addFlag(
+      gg.panaOption,
+      help: 'Run »dart run pana« as part of »gg can publish«.',
+      defaultsTo: true,
+      negatable: true,
+    );
+
     argParser.addFlag(
       'verbose',
       abbr: 'v',

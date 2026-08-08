@@ -20,6 +20,14 @@ All commands extend `DirCommand<T>` from `gg_args`; the primary logic lives in `
 
 **Per-repo publish gate** (`CanPublishCommand.checkRepo`, in `lib/src/commands/can/publish.dart`): gg_one's `can publish` runs `Pana(publishedOnly: true)`, which cannot resolve a dependency constraint naming a sibling version that is not on pub.dev yet. The check therefore runs **per repo, inside `_publishRepo`** — after the refs were unlocalized, the versions propagated and the result force-committed, and **before** the push. By then every dependency published earlier in the same run is on its registry and pana resolves. Both positions are load-bearing: **after the commit** because gg_one's `can publish` contains `did commit` and the ref changes leave the manifests dirty; **before the push** because nothing irreversible has happened yet, so a rejected repo takes the **full restore** path. The steps that stay ticket-wide are the ones that cannot be per-repo: `do push` merges main into the branches and must not run mid-publish; `did commit`/the npm-login sweep are ticket-wide by nature. The **npm sweep** stays up front because discovering a missing login after three packages already went to a registry is the worst failure this command has. The accepted trade-off: repo A can already be published when repo B is rejected — A keeps its `published` marker, B is `failed`, `--continue` resumes at B.
 
+**`--no-pana`**: `gg_multi can publish` and `do publish` both carry the flag
+(pana runs by default). `do publish` resolves it once and passes it to
+`CanPublishCommand.checkTicket`/`checkRepo` and, as
+`options: {gg.panaOption: <value>}`, to gg_one's `do publish`; `CanPublishCommand`
+forwards it the same way into gg_one's `can publish`. The `options` map of
+`DirCommand.exec` is the carrier throughout — see the gg_one_do_publish
+CLAUDE.md for why the skip sits in a wrapper around `Pana`.
+
 **First-publish gate** (`EnsureInRegistry`, `lib/src/backend/ensure_in_registry.dart`): right before a repo's `gg do publish`, the gate checks (via gg_publish's `IsInRegistry`) that at least one version of the package is on its registry. A package that was never published has to be published manually by the user first: the gate prints the shell commands in blue (`cd <repo>` + `dart pub publish` / `pnpm publish --no-git-checks [--access public]`), waits for ⏎ on stdin (`q` aborts, headless runs fail fast via `throwWhenNotATerminal`), re-checks and continues. Repos without a public registry are skipped.
 
 **Skipping unchanged repos**: `PublishSkipCheck` (gg_multi_core) decides whether a release is needed — see its docs. A skipped repo is logged, marked `skipped` in the ticket file, and its _current_ version is still captured so dependents resolve. Everything undecidable errs toward publishing. `--publish-unchanged` restores publish-everything. On `--continue` a `skipped` repo is **re-evaluated instead of trusted** (`published` markers are trusted).
