@@ -596,38 +596,47 @@ class DoPublishCommand extends DirCommand<void> {
       try {
         final version = await _getVersion.get(directory: repoDir);
         if (version != null && version.isNotEmpty) {
-          // Use manifest name (e.g. scoped »@org/pkg« for npm), not dir.
-          final packageName = await _readManifestName(repoDir, repoName);
-          refVersions[packageName] = version;
+          // A hybrid is known under two names — »base_dna« to its Dart
+          // dependents and »@tssuite/base-dna« to its npm ones. Registering
+          // only one of them left the other ecosystem's constraint at the old
+          // version.
+          final names = await _publishedNames(repoDir, repoName);
+          for (final name in names.values) {
+            refVersions[name] = version;
+          }
 
-          final projectType = _detectProjectType(repoDir);
           try {
             // Git-only repos (no manifest) have no registry to wait for. A
             // merge uploads nothing either, so the fresh version never becomes
             // visible on a registry — recording it here would make every
             // dependent repo wait for a release that is not coming.
-            if (!isMergeOnly && projectType != gg.ProjectType.none) {
-              final publishInfo = projectType == gg.ProjectType.typescript
-                  ? await _npmChecker.getPackagePublishInfo(
-                      packageName: packageName,
-                      workingDirectory: repoDir.path,
-                    )
-                  : await _pubDevChecker.getPackagePublishInfo(
-                      packageName: packageName,
-                    );
-              publishedPackages[packageName] = _PublishedPackageState(
-                packageName: packageName,
-                version: version,
-                waitsForPubDev: publishInfo.waitsForPubDev,
-                projectType: projectType,
-                repoDirPath: repoDir.path,
-              );
+            if (!isMergeOnly) {
+              for (final entry in names.entries) {
+                final target = entry.key;
+                final packageName = entry.value;
+                final publishInfo = target == gg_lang.PublishTarget.npm
+                    ? await _npmChecker.getPackagePublishInfo(
+                        packageName: packageName,
+                        workingDirectory: repoDir.path,
+                      )
+                    : await _pubDevChecker.getPackagePublishInfo(
+                        packageName: packageName,
+                      );
+                publishedPackages[packageName] = _PublishedPackageState(
+                  packageName: packageName,
+                  version: version,
+                  waitsForPubDev: publishInfo.waitsForPubDev,
+                  target: target,
+                  repoDirPath: repoDir.path,
+                );
+              }
             }
           } catch (e) {
             ggLog(
               cWarn(
-                'Could not check registry visibility of $packageName ($e); '
-                'dependent repos will not wait for it. Publish is unaffected.',
+                'Could not check registry visibility of '
+                '${names.values.join(', ')} ($e); dependent repos will not '
+                'wait for it. Publish is unaffected.',
               ),
             );
           }
@@ -993,11 +1002,25 @@ class DoPublishCommand extends DirCommand<void> {
     // uploaded, which is precisely what pana and `is feature branch` would
     // now trip over — so a resume skips it and gg_one continues at its own
     // first open step.
+    // A hybrid whose two manifests disagree is reconciled inside gg_one's
+    // publish, and the reconciled version has no CHANGELOG.md section yet —
+    // which pana rejects. gg_one turns pana off for such a run; the gate here
+    // runs *before* that, so it has to reach the same conclusion itself.
+    final repoPana = pana && !await gg_lang.hybridVersionsDiffer(repoDir);
+    if (pana && !repoPana) {
+      taskLog(
+        cWarn(
+          '$repoName: the manifests disagree on the version — publishing '
+          'without pana.',
+        ),
+      );
+    }
+
     if (!skipValidation) {
       await _canPublishCommand.checkRepo(
         directory: repoDir,
         ggLog: ggLog,
-        pana: pana,
+        pana: repoPana,
       );
     }
 
@@ -1044,7 +1067,7 @@ class DoPublishCommand extends DirCommand<void> {
       pr: pr,
       mergeOnly: mergeOnly,
       force: force,
-      options: <String, dynamic>{gg.panaOption: pana},
+      options: <String, dynamic>{gg.panaOption: repoPana},
     );
   }
 
@@ -1405,12 +1428,35 @@ class DoPublishCommand extends DirCommand<void> {
   /// in the ticket's `.gg/gg-publish.json`. Without it the reason only shows
   /// up at the very end of the run, below the rollback output — and the
   /// per-repo detail gg_one logs is swallowed entirely without `--verbose`.
+  /// The human-readable part of [error].
+  ///
+  /// Most failures are `Exception`s carrying a `message`, but not all: a
+  /// `TypeError` has none, and reading it blindly used to replace the real
+  /// cause with a `NoSuchMethodError`.
+  static String _reasonOf(Object error) {
+    try {
+      final dynamic candidate = error;
+      final message = candidate.message;
+      if (message != null) {
+        return message.toString();
+      }
+      // Every failure of the publish flows carries a message; the fallback
+      // exists so an unexpected error type is reported instead of replacing
+      // the real cause with a NoSuchMethodError.
+      // coverage:ignore-start
+    } catch (_) {
+      // No »message« — fall through to toString().
+    }
+    return error.toString();
+    // coverage:ignore-end
+  }
+
   void _logPublishFailure({
     required String repoName,
     required Object error,
     required GgLog ggLog,
   }) {
-    final reason = rmControls((error as dynamic).message.toString()).trim();
+    final reason = rmControls(_reasonOf(error)).trim();
     ggLog(
       [
         cDetail('✗ ${mergeOnly ? 'Merging' : 'Publishing'} $repoName failed'),
@@ -1662,7 +1708,7 @@ class DoPublishCommand extends DirCommand<void> {
       // The checkers announce the wait themselves (incl. the registry's
       // status page url), report progress while polling and fail with a
       // bounded timeout instead of hanging.
-      await (state.projectType == gg.ProjectType.typescript
+      await (state.target == gg_lang.PublishTarget.npm
           ? _npmChecker.waitUntilVersionAvailable(
               packageName: state.packageName,
               version: state.version,
@@ -1679,29 +1725,58 @@ class DoPublishCommand extends DirCommand<void> {
     }
   }
 
-  /// Detects the project type of [repoDir]. Repos without a recognizable
-  /// manifest resolve to [gg.ProjectType.none] — they publish to git only,
-  /// so no registry is waited for.
+  /// The name the package of [repoDir] carries on each registry it publishes
+  /// to — `foo` on pub.dev, the possibly scoped `@org/foo` on npm.
   ///
-  /// Bridges (pubspec + package.json) resolve to TypeScript via
-  /// [gg.checkProjectType] so they are published to — and waited for on — npm.
-  gg.ProjectType _detectProjectType(Directory repoDir) =>
-      gg.checkProjectType(repoDir);
-
-  /// Reads the published package name from the manifest of [repoDir]
-  /// (e.g. the scoped »@org/pkg« for npm). Falls back to [fallback] (the
-  /// repository directory name) when the manifest cannot be read.
-  Future<String> _readManifestName(Directory repoDir, String fallback) async {
+  /// A hybrid answers with both, which is what lets a Dart dependent and an
+  /// npm dependent of the same repository each get their own constraint
+  /// updated and wait on their own registry.
+  ///
+  /// Falls back to a single entry named after the repository directory when no
+  /// manifest can be read — a git-only repo has no registry, but its
+  /// dependents still resolve it by name.
+  Future<Map<gg_lang.PublishTarget, String>> _publishedNames(
+    Directory repoDir,
+    String fallback,
+  ) async {
+    final result = <gg_lang.PublishTarget, String>{};
     try {
       final catalog = await gg_lang.LanguageCatalog.load();
-      // Bridges expose their scoped npm name from package.json (TypeScript).
+      final targets = await gg_lang.publishTargetsOf(repoDir, catalog: catalog);
+      for (final target in targets.ordered) {
+        result[target] = await target.manifestIn(repoDir, catalog).readName();
+      }
+      // coverage:ignore-start
+    } catch (_) {
+      return <gg_lang.PublishTarget, String>{
+        gg_lang.PublishTarget.pubDev: fallback,
+      };
+    }
+    // coverage:ignore-end
+
+    if (result.isEmpty) {
+      // No public registry: the version still has to reach the dependents'
+      // constraints, so record the manifest name — or the directory name for a
+      // repository without any manifest.
+      result[gg_lang.PublishTarget.pubDev] = await _manifestNameOf(
+        repoDir,
+        fallback,
+      );
+    }
+    return result;
+  }
+
+  /// Reads the package name from whichever manifest [repoDir] carries.
+  Future<String> _manifestNameOf(Directory repoDir, String fallback) async {
+    try {
+      final catalog = await gg_lang.LanguageCatalog.load();
       return await gg_lang.Manifest.detect(
         repoDir,
         catalog,
         treatBridgeAsTypeScript: true,
       ).readName();
     } catch (_) {
-      return fallback; // coverage:ignore-line
+      return fallback;
     }
   }
 
@@ -1857,7 +1932,7 @@ class _PublishedPackageState {
     required this.packageName,
     required this.version,
     required this.waitsForPubDev,
-    required this.projectType,
+    required this.target,
     required this.repoDirPath,
   });
 
@@ -1870,8 +1945,10 @@ class _PublishedPackageState {
   /// Whether the next packages must wait for registry visibility.
   final bool waitsForPubDev;
 
-  /// The project type — selects the registry (pub.dev vs npm) to wait on.
-  final gg.ProjectType projectType;
+  /// The registry this entry belongs to. A hybrid contributes one entry per
+  /// registry, so a Dart dependent waits on pub.dev while an npm dependent
+  /// waits on npm.
+  final gg_lang.PublishTarget target;
 
   /// The repo directory — npm lookups run there so the project-level
   /// `.npmrc` (scoped/private registries) is honored.

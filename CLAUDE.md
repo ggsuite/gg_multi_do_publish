@@ -79,3 +79,29 @@ There is **no `do merge` command** — it was folded into `do publish --merge-on
 - **Test coverage**: 100% required. Every file under `lib/src/` must have a matching test at the same relative path under `test/`.
 - **Mocks**: Mock classes live in the same file as the class they mock, extending `MockDirCommand`.
 - **Commits/pushes**: Always go through `gg do commit` / `gg do push`, never raw `git commit` / `git push`.
+
+## Hybrid packages
+
+A hybrid publishes to pub.dev **and** npm, which the multi-repo flow feels in
+four places:
+
+- **`refVersions` carries both names.** A hybrid is `base_dna` to its Dart
+  dependents and `@tssuite/base-dna` to its npm ones; registering one left the
+  other ecosystem's constraint at the old version. `_publishedNames` returns one
+  name per active registry (and falls back to the manifest — or directory — name
+  for a repository without any registry, whose version still has to reach the
+  dependents).
+- **The sibling wait is per registry.** `_PublishedPackageState` carries a
+  `PublishTarget` instead of a project type; a hybrid contributes one entry per
+  registry, so a Dart dependent waits on pub.dev while an npm dependent waits on
+  npm. Dispatching on the project type made a Dart dependent wait on npm and
+  then resolve a version pub.dev had not seen yet.
+- **`EnsureInRegistry` prompts per registry**, naming that registry's package
+  and publish command. A hybrid that is on npm but was never released to pub.dev
+  used to pass the gate and die inside `dart pub publish`.
+- **The per-repo gate turns pana off** for a repository whose manifests
+  disagree on the version, matching what gg_one does after it reconciles them
+  (`gg_lang.hybridVersionsDiffer`).
+
+`NpmRegistryChecker` resolves its status page from the merged `.npmrc`, so a
+scoped package on a private feed no longer gets an npmjs.com link that 404s.

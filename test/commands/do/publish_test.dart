@@ -6929,6 +6929,107 @@ void main() {
       });
     });
 
+    group('for hybrids and registry-less repos', () {
+      /// A hybrid refreshes its dependencies through the node package
+      /// manager, which the surrounding fixture does not stub.
+      void stubNodeRefresh() {
+        for (final pm in <String>['pnpm', 'npm', 'yarn']) {
+          when(
+            () => mockProcessRunner(
+              pm,
+              any(),
+              workingDirectory: any(named: 'workingDirectory'),
+              environment: any(named: 'environment'),
+            ),
+          ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
+        }
+      }
+
+      /// Turns repo A into a hybrid whose npm side is at
+      /// [packageJsonVersion].
+      void makeAHybrid({
+        required String pubspecVersion,
+        required String packageJsonVersion,
+      }) {
+        File(
+          path.join(ticketDir.path, 'A', 'pubspec.yaml'),
+        ).writeAsStringSync('name: A\nversion: $pubspecVersion\n');
+        File(path.join(ticketDir.path, 'A', 'package.json')).writeAsStringSync(
+          '{"name": "@org/a", "version": "$packageJsonVersion"}',
+        );
+        stubNodeRefresh();
+      }
+
+      /// The dependency names the run looked up while propagating versions.
+      List<String> lookedUpRefs() => verify(
+        () => mockGetRefVersion.get(
+          directory: any(named: 'directory'),
+          ref: captureAny(named: 'ref'),
+        ),
+      ).captured.cast<String>();
+
+      test('turns pana off for a repo whose manifests drifted', () async {
+        // gg_one reconciles them and then skips pana, because the reconciled
+        // version has no CHANGELOG.md section. The gate runs before that, so
+        // it has to reach the same conclusion itself.
+        makeAHybrid(pubspecVersion: '1.0.2', packageJsonVersion: '1.0.1');
+
+        await buildRunner().run([
+          'publish',
+          '--input',
+          ticketDir.path,
+          '--verbose',
+        ]);
+
+        expect(
+          messages.join('\n'),
+          contains('A: the manifests disagree on the version'),
+        );
+        // A is drifted, B is not.
+        final panaPerRepo = verify(
+          () => mockCanPublishCommand.checkRepo(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            pana: captureAny(named: 'pana'),
+          ),
+        ).captured.cast<bool?>();
+        expect(panaPerRepo, [false, true]);
+      });
+
+      test('registers both names of a hybrid as reference versions', () async {
+        // A Dart dependent resolves »A«, an npm dependent »@org/a« — both
+        // constraints have to be updated.
+        makeAHybrid(pubspecVersion: '1.0.1', packageJsonVersion: '1.0.1');
+
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        // verify() consumes the recorded calls, so capture them once.
+        final refs = lookedUpRefs();
+        expect(refs, contains('A'));
+        expect(refs, contains('@org/a'));
+      });
+
+      test('still records a name for a repo without a registry', () async {
+        // »publish_to: none« leaves no registry, but the version still has to
+        // reach the dependents' constraints.
+        File(
+          path.join(ticketDir.path, 'A', 'pubspec.yaml'),
+        ).writeAsStringSync('name: A\nversion: 1.0.1\npublish_to: none\n');
+
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        expect(lookedUpRefs(), contains('A'));
+      });
+
+      test('falls back to the directory name without a manifest', () async {
+        File(path.join(ticketDir.path, 'A', 'pubspec.yaml')).deleteSync();
+
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        expect(lookedUpRefs(), contains('A'));
+      });
+    });
+
     test('checks a repo after its refs point at pub.dev and after its '
         'dependencies were published', () async {
       await buildRunner().run(['publish', '--input', ticketDir.path]);
