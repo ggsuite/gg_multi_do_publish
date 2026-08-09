@@ -4,6 +4,7 @@
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
 
+import 'package:gg_git/gg_git.dart';
 import 'dart:io';
 
 import 'package:gg_args/gg_args.dart';
@@ -317,7 +318,11 @@ class CanPublishCommand extends DirCommand<void> {
     final result = await _processRunner('git', [
       'commit',
       '-m',
-      '#gg: Update $files',
+      '${gg.ggCommitPrefix}Update $files',
+      // The pathspec belongs on the commit as well, not only on the »add«:
+      // without it the commit takes whatever else the index already holds.
+      '--',
+      ...lockFiles,
     ], workingDirectory: repoDir.path);
 
     if (result.exitCode != 0) {

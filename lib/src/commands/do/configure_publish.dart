@@ -18,6 +18,20 @@ import 'package:pub_semver/pub_semver.dart';
 
 import 'package:gg_multi_core/gg_multi_core.dart';
 
+/// The answers [DoConfigurePublishCommand.configureRepo] collected for one
+/// repository, plus the registry baseline its increment preview was based on.
+class RepoPublishPlan {
+  /// Constructor
+  const RepoPublishPlan({required this.override, required this.baseline});
+
+  /// The version increment and merge message chosen for the repository.
+  final gg.RepoOverride override;
+
+  /// The version the repository last published to its registry — the base
+  /// the chosen increment is applied to.
+  final Version baseline;
+}
+
 /// Interactively builds the `.gg/gg-publish.json` publish configuration for
 /// the current ticket, asking for the version increment and merge message of
 /// every repo up front. `do publish` runs this automatically when no
@@ -117,15 +131,10 @@ class DoConfigurePublishCommand extends DirCommand<void> {
       }
     }
 
-    final ticketDescription = readTicketDescription(ticketDir);
-
-    // The merge-message seed: an explicit `-m` wins, otherwise the ticket
-    // description. It pre-fills the per-repo prompt and is the fallback when
-    // the user clears it (the config model rejects an empty merge message).
-    final trimmedDefault = defaultMergeMessage?.trim();
-    final seedMessage = (trimmedDefault != null && trimmedDefault.isNotEmpty)
-        ? trimmedDefault
-        : (ticketDescription ?? '');
+    final seedMessage = seedMessageFor(
+      ticketDir: ticketDir,
+      defaultMergeMessage: defaultMergeMessage,
+    );
 
     final subs = await _sortedProcessingList.get(
       directory: ticketDir,
@@ -137,33 +146,13 @@ class DoConfigurePublishCommand extends DirCommand<void> {
 
     final repos = <String, gg.RepoOverride>{};
     for (final repo in subs) {
-      final repoDir = repo.directory;
-      final repoName = path.basename(repoDir.path);
-      ggLog('\n${cH1(repoName)}');
-
-      // A merge-only run releases nothing — no version bump, no changelog
-      // heading, no tag. Asking for an increment would offer a version that
-      // is never created, so the prompt is skipped and none is stored.
-      final increment = mergeOnly
-          ? null
-          : await _versionSelector.selectIncrement(
-              currentVersion: await _currentVersion(repoDir),
-            );
-      // A merge message must never be empty (the config model rejects it), so
-      // fall back to the seed (-m or ticket description) and finally a generic
-      // default.
-      var message = (await _editMessage(seedMessage) ?? '').trim();
-      if (message.isEmpty) {
-        message = seedMessage;
-      }
-      if (message.isEmpty) {
-        message = 'Publish $repoName';
-      }
-
-      repos[repoName] = gg.RepoOverride(
-        versionIncrement: increment?.name,
-        mergeMessage: message,
+      ggLog('\n${cH1(path.basename(repo.directory.path))}');
+      final plan = await configureRepo(
+        repoDir: repo.directory,
+        seedMessage: seedMessage,
+        mergeOnly: mergeOnly,
       );
+      repos[path.basename(repo.directory.path)] = plan.override;
     }
 
     // Whether the ticket is cleaned up is no longer a question: `do publish`
@@ -176,6 +165,66 @@ class DoConfigurePublishCommand extends DirCommand<void> {
     // publish — the user just answered the questions and does not need a
     // path back.
     return config;
+  }
+
+  /// The merge-message seed of a ticket: an explicit `-m` wins, otherwise the
+  /// ticket description.
+  ///
+  /// It pre-fills the per-repo prompt and is the fallback when the user clears
+  /// it — the config model rejects an empty merge message.
+  static String seedMessageFor({
+    required Directory ticketDir,
+    String? defaultMergeMessage,
+  }) {
+    final trimmed = defaultMergeMessage?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      return trimmed;
+    }
+    return readTicketDescription(ticketDir) ?? '';
+  }
+
+  /// Asks the publish questions for the single repository [repoDir] and
+  /// returns the answers plus the registry baseline the increment preview was
+  /// calculated from.
+  ///
+  /// The baseline travels with the answers so the caller can predict the
+  /// version this repo will publish — without a second registry lookup.
+  ///
+  /// No repository header is logged here; the caller owns it, because it
+  /// alone knows whether it has something to say about this repo at all.
+  Future<RepoPublishPlan> configureRepo({
+    required Directory repoDir,
+    required String seedMessage,
+    bool mergeOnly = false,
+  }) async {
+    final repoName = path.basename(repoDir.path);
+    final baseline = await _currentVersion(repoDir);
+
+    // A merge-only run releases nothing — no version bump, no changelog
+    // heading, no tag. Asking for an increment would offer a version that
+    // is never created, so the prompt is skipped and none is stored.
+    final increment = mergeOnly
+        ? null
+        : await _versionSelector.selectIncrement(currentVersion: baseline);
+
+    // A merge message must never be empty (the config model rejects it), so
+    // fall back to the seed (-m or ticket description) and finally a generic
+    // default.
+    var message = (await _editMessage(seedMessage) ?? '').trim();
+    if (message.isEmpty) {
+      message = seedMessage;
+    }
+    if (message.isEmpty) {
+      message = 'Publish $repoName';
+    }
+
+    return RepoPublishPlan(
+      override: gg.RepoOverride(
+        versionIncrement: increment?.name,
+        mergeMessage: message,
+      ),
+      baseline: baseline,
+    );
   }
 
   /// Returns the baseline the increment preview is calculated from: the

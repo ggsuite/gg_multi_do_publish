@@ -332,6 +332,11 @@ void main() {
             'commit',
             '-m',
             '#gg: Update pubspec.lock, packages/x/pubspec.lock',
+            // The pathspec is on the commit too, so nothing that was staged
+            // meanwhile rides along.
+            '--',
+            'pubspec.lock',
+            'packages/x/pubspec.lock',
           ], workingDirectory: path.join(ticketDir.path, 'A')),
         ).called(1);
         expect(
