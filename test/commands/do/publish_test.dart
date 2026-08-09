@@ -68,9 +68,6 @@ class MockUnlocalizeRefs extends Mock implements ChangeRefsToPubDev {}
 /// Mock for ChangeRefsToLocal (the post-publish re-localization)
 class MockLocalizeRefs extends Mock implements ChangeRefsToLocal {}
 
-/// Mock for gg DidPublish
-class MockGgDidPublish extends Mock implements gg.DidPublish {}
-
 /// Mock for TicketState
 class MockTicketState extends Mock implements TicketState {}
 
@@ -445,7 +442,6 @@ void main() {
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockLocalizeRefs = MockLocalizeRefs();
-      final mockGgDidPublish = MockGgDidPublish();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
       _stubPubUpgrade(mockProcessRunner);
@@ -462,10 +458,6 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
         ),
-      ).thenAnswer((_) async {});
-
-      when(
-        () => mockGgDidPublish.set(directory: any(named: 'directory')),
       ).thenAnswer((_) async {});
 
       when(
@@ -608,7 +600,6 @@ void main() {
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             localizeRefs: mockLocalizeRefs,
-            ggDidPublish: mockGgDidPublish,
             sortedProcessingList: mockSortedProcessingList,
             processRunner: mockProcessRunner.call,
             canPublishCommand: mockCanPublishCommand,
@@ -671,9 +662,6 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
         ),
-      ).called(2);
-      verify(
-        () => mockGgDidPublish.set(directory: any(named: 'directory')),
       ).called(2);
       verify(
         () => mockSystemCommit.commit(
@@ -5684,7 +5672,6 @@ void main() {
 
     /// Builds the command under test with all mocks wired up.
     CommandRunner<void> buildRunner({
-      gg.DidPublish? ggDidPublish,
       gg.InteractAdapter? interactAdapter,
       gg.HasTerminal? hasTerminal,
       TicketState? ticketState,
@@ -5710,7 +5697,6 @@ void main() {
           getRefVersionCommand: mockGetRefVersion,
           pubDevChecker: mockPubDevChecker,
           publishSkipCheck: mockSkipCheck,
-          ggDidPublish: ggDidPublish,
           interactAdapter: interactAdapter,
           hasTerminal: hasTerminal,
           ticketState: ticketState,
@@ -5947,75 +5933,26 @@ void main() {
       );
     });
 
-    test(
-      'keeps the localized refs of a skipped repo and records didPublish',
-      () async {
-        // A skipped repo stays workable: its references keep pointing at the
-        // sibling checkouts, because the ticket stays in place. Only the
-        // published repo is unlocalized for its release.
-        stubSkipCheck({'A'});
-        final mockGgDidPublish = MockGgDidPublish();
-        when(
-          () => mockGgDidPublish.set(directory: any(named: 'directory')),
-        ).thenAnswer((_) async {});
-
-        await buildRunner(
-          ggDidPublish: mockGgDidPublish,
-        ).run(['publish', '--input', ticketDir.path]);
-
-        final unlocalized = verify(
-          () => mockUnlocalizeRefs.get(
-            directory: captureAny(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
-          ),
-        ).captured.cast<Directory>().map((d) => path.basename(d.path));
-        expect(unlocalized, isNot(contains('A')));
-        expect(unlocalized, contains('B'));
-
-        // Both repos are recorded as published: B by its publish, the
-        // skipped A because its content is already released.
-        final recorded = verify(
-          () => mockGgDidPublish.set(directory: captureAny(named: 'directory')),
-        ).captured.cast<Directory>().map((d) => path.basename(d.path));
-        expect(recorded, containsAll(<String>['A', 'B']));
-      },
-    );
-
-    test('reports a didPublish marker that could not be written and '
-        'continues', () async {
+    test('keeps the localized refs of a skipped repo', () async {
+      // A skipped repo stays workable: its references keep pointing at the
+      // sibling checkouts, because the ticket stays in place. Only the
+      // published repo is unlocalized for its release.
+      //
+      // Nothing records a »published« marker any more — »gg did publish«
+      // reads the tags, so it cannot claim »released« for a repo whose work
+      // is still sitting unreleased on the default branch.
       stubSkipCheck({'A'});
-      final mockGgDidPublish = MockGgDidPublish();
-      when(
-        () => mockGgDidPublish.set(
-          directory: any(
-            named: 'directory',
-            that: predicate<Directory>((d) => path.basename(d.path) == 'A'),
-          ),
+
+      await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+      final unlocalized = verify(
+        () => mockUnlocalizeRefs.get(
+          directory: captureAny(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
         ),
-      ).thenThrow(Exception('no commits yet'));
-      when(
-        () => mockGgDidPublish.set(
-          directory: any(
-            named: 'directory',
-            that: predicate<Directory>((d) => path.basename(d.path) == 'B'),
-          ),
-        ),
-      ).thenAnswer((_) async {});
-
-      await buildRunner(
-        ggDidPublish: mockGgDidPublish,
-      ).run(['publish', '--input', ticketDir.path, '--verbose']);
-
-      expect(
-        messages.any((m) => m.contains('Could not record didPublish for A')),
-        isTrue,
-      );
-
-      // The run still finished: the resume anchor is gone again.
-      expect(
-        File(path.join(ticketDir.path, '.gg', 'gg-publish.json')).existsSync(),
-        isFalse,
-      );
+      ).captured.cast<Directory>().map((d) => path.basename(d.path));
+      expect(unlocalized, isNot(contains('A')));
+      expect(unlocalized, contains('B'));
     });
 
     test(
@@ -7851,7 +7788,6 @@ DoPublishCommand makePublishCommand({
   RestorePublishTo? restorePublishTo,
   gg.DoPush? ggDoPush,
   gg.DoPublish? ggDoPublish,
-  gg.DidPublish? ggDidPublish,
   SortedProcessingList? sortedProcessingList,
   ProcessRunner? processRunner,
   CanPublishCommand? canPublishCommand,
@@ -7900,13 +7836,6 @@ DoPublishCommand makePublishCommand({
     ).thenAnswer((_) async {});
     localizeRefs = mock;
   }
-  if (ggDidPublish == null) {
-    final mock = MockGgDidPublish();
-    when(
-      () => mock.set(directory: any(named: 'directory')),
-    ).thenAnswer((_) async {});
-    ggDidPublish = mock;
-  }
   if (ticketState == null) {
     final mock = MockTicketState();
     when(
@@ -7930,7 +7859,6 @@ DoPublishCommand makePublishCommand({
     restorePublishTo: restorePublishTo,
     ggDoPush: ggDoPush,
     ggDoPublish: ggDoPublish,
-    ggDidPublish: ggDidPublish,
     sortedProcessingList: sortedProcessingList,
     processRunner: processRunner,
     canPublishCommand: canPublishCommand,

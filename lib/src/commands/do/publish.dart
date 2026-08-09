@@ -132,7 +132,6 @@ class DoPublishCommand extends DirCommand<void> {
     RestorePublishTo? restorePublishTo,
     gg.DoPush? ggDoPush,
     gg.DoPublish? ggDoPublish,
-    gg.DidPublish? ggDidPublish,
     SortedProcessingList? sortedProcessingList,
     ProcessRunner? processRunner,
     CanPublishCommand? canPublishCommand,
@@ -158,7 +157,6 @@ class DoPublishCommand extends DirCommand<void> {
        _restorePublishTo = restorePublishTo ?? RestorePublishTo(ggLog: ggLog),
        _ggDoPush = ggDoPush ?? gg.DoPush(ggLog: ggLog),
        _ggDoPublish = ggDoPublish ?? gg.DoPublish(ggLog: ggLog),
-       _ggDidPublish = ggDidPublish ?? gg.DidPublish(ggLog: ggLog),
        _sortedProcessingList =
            sortedProcessingList ?? SortedProcessingList(ggLog: ggLog),
        _canPublishCommand =
@@ -231,11 +229,6 @@ class DoPublishCommand extends DirCommand<void> {
 
   /// Instance of gg DoPublish
   final gg.DoPublish _ggDoPublish;
-
-  /// Marks a repo's current state as published (`didPublish` in
-  /// `.gg/gg.json`) — written once the workspace wiring is restored, so the
-  /// recorded hash matches the state the user continues working on.
-  final gg.DidPublish _ggDidPublish;
 
   /// Instance of SortedProcessingList
   final SortedProcessingList _sortedProcessingList;
@@ -520,19 +513,6 @@ class DoPublishCommand extends DirCommand<void> {
         // The planning pass already reported the verdict per repo.
         publishConfig = publishConfig.withRepoStatus(repoName, 'skipped');
         await publishConfig.save(file: runtimeFile);
-
-        // A skip means: the current content is already released. Record
-        // that as didPublish, so »gg did publish« answers yes and the end
-        // of the run can tell a fully released ticket from one that still
-        // carries pending repos. A merge-only run releases nothing, so it
-        // records nothing.
-        if (!isMergeOnly) {
-          try {
-            await _ggDidPublish.set(directory: repoDir);
-          } catch (e) {
-            taskLog(cWarn('Could not record didPublish for $repoName: $e'));
-          }
-        }
       } else {
         await _waitForPublishedDependenciesIfNeeded(
           currentRepo: repo,
@@ -586,7 +566,7 @@ class DoPublishCommand extends DirCommand<void> {
 
         // The release is irreversible and complete — bring the repo back
         // into its workable workspace state: feature branch, restored
-        // references, didPublish marker.
+        // references.
         await _restoreWorkspaceState(
           repoDir: repoDir,
           repoName: repoName,
@@ -1354,9 +1334,8 @@ class DoPublishCommand extends DirCommand<void> {
   ///   4. Refresh the dependencies so lock files and `node_modules` follow
   ///      the restored references.
   ///   5. Commit everything as one gg bookkeeping commit and — for a real
-  ///      publish, not a merge — record `didPublish` in `.gg/gg.json`. The
-  ///      marker is written only now, so its hash covers the state the user
-  ///      continues working on.
+  ///      publish, not a merge. No »published« marker is recorded any more:
+  ///      `gg did publish` reads the tags, which cannot go stale.
   ///   6. Push, so the remote feature branch matches and shared workspaces
   ///      stay in sync.
   ///
@@ -1416,10 +1395,6 @@ class DoPublishCommand extends DirCommand<void> {
         message: '${gg.ggCommitPrefix}restored local workspace references',
         userCommitMessage: gg.readTicketDescriptionForRepo,
       );
-
-      if (!mergeOnly) {
-        await _ggDidPublish.set(directory: repoDir);
-      }
 
       await _ggDoPush.exec(directory: repoDir, ggLog: taskLog);
 
