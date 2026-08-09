@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:gg_args/gg_args.dart';
 import 'package:gg_console_colors/gg_console_colors.dart';
 import 'package:gg_local_package_dependencies/gg_local_package_dependencies.dart';
+import 'package:gg_git/gg_git.dart';
 import 'package:gg_log/gg_log.dart';
 import 'package:gg_one/gg_one.dart' as gg;
 import 'package:gg_status_printer/gg_status_printer.dart';
@@ -317,7 +318,11 @@ class CanPublishCommand extends DirCommand<void> {
     final result = await _processRunner('git', [
       'commit',
       '-m',
-      '#gg: Update $files',
+      '${ggCommitPrefix}Update $files',
+      // The pathspec belongs on the commit as well, not only on the »add«:
+      // without it the commit takes whatever else the index already holds.
+      '--',
+      ...lockFiles,
     ], workingDirectory: repoDir.path);
 
     if (result.exitCode != 0) {

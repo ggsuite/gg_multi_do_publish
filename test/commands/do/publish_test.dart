@@ -35,7 +35,7 @@ import 'package:test/test.dart';
 class MockGgDoPublish extends Mock implements gg.DoPublish {}
 
 /// Mock for gg DoCommit
-class MockGgDoCommit extends Mock implements gg.DoCommit {}
+class MockGgSystemCommit extends Mock implements gg.GgSystemCommit {}
 
 /// Mock for gg DoUpgradeDeps
 class MockGgDoUpgradeDeps extends Mock implements gg.DoUpgradeDeps {}
@@ -438,7 +438,7 @@ void main() {
         path.join(ticketDir.path, 'TICKPB.code-workspace'),
       ).writeAsStringSync('{"folders": []}');
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockLocalizeRefs = MockLocalizeRefs();
@@ -511,14 +511,24 @@ void main() {
       ).thenAnswer((_) async {});
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
 
       when(
         () => mockGgDoPush.exec(
@@ -591,7 +601,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             localizeRefs: mockLocalizeRefs,
@@ -663,12 +673,15 @@ void main() {
         () => mockGgDidPublish.set(directory: any(named: 'directory')),
       ).called(2);
       verify(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: '#gg: restored local workspace references',
-          force: true,
-          updateChangeLog: false,
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
       ).called(2);
 
@@ -688,7 +701,7 @@ void main() {
       ).writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -753,14 +766,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -838,7 +861,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -889,7 +912,7 @@ void main() {
 ''');
 
         final mockGgDoPublish = MockGgDoPublish();
-        final mockGgDoCommit = MockGgDoCommit();
+        final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
@@ -934,14 +957,24 @@ void main() {
           ),
         ).thenAnswer((_) async {});
         when(
-          () => mockGgDoCommit.exec(
+          () => mockSystemCommit.commit(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             message: any(named: 'message'),
-            force: any(named: 'force'),
-            updateChangeLog: any(named: 'updateChangeLog'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
         when(
           () => mockGgDoPush.exec(
             directory: any(named: 'directory'),
@@ -997,7 +1030,7 @@ void main() {
               ggLog: ggLog,
               ensureInRegistry: mockEnsureInRegistry,
               ggDoPublish: mockGgDoPublish,
-              ggDoCommit: mockGgDoCommit,
+              systemCommit: mockSystemCommit,
               ggDoPush: mockGgDoPush,
               unlocalizeRefs: mockUnlocalizeRefs,
               sortedProcessingList: mockSortedProcessingList,
@@ -1049,7 +1082,7 @@ void main() {
 ''');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -1096,14 +1129,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -1159,7 +1202,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -1232,7 +1275,7 @@ void main() {
 ''');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -1277,14 +1320,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -1340,7 +1393,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -1376,7 +1429,7 @@ void main() {
 
     test('does not wait for dependency with publish_to none', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -1438,14 +1491,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -1506,7 +1569,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -1626,7 +1689,7 @@ void main() {
       'aborts on gg do publish failure for specific repo and keeps folder',
       () async {
         final mockGgDoPublish = MockGgDoPublish();
-        final mockGgDoCommit = MockGgDoCommit();
+        final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
@@ -1677,14 +1740,24 @@ void main() {
         ).thenAnswer((_) async {});
 
         when(
-          () => mockGgDoCommit.exec(
+          () => mockSystemCommit.commit(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             message: any(named: 'message'),
-            force: any(named: 'force'),
-            updateChangeLog: any(named: 'updateChangeLog'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
 
         when(
           () => mockGgDoPush.exec(
@@ -1759,7 +1832,7 @@ void main() {
               ggLog: ggLog,
               ensureInRegistry: mockEnsureInRegistry,
               ggDoPublish: mockGgDoPublish,
-              ggDoCommit: mockGgDoCommit,
+              systemCommit: mockSystemCommit,
               ggDoPush: mockGgDoPush,
               unlocalizeRefs: mockUnlocalizeRefs,
               sortedProcessingList: mockSortedProcessingList,
@@ -1826,7 +1899,7 @@ void main() {
 
     test('aborts on unlocalize refs failure for specific repos', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -1883,14 +1956,24 @@ void main() {
       });
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
 
       when(
         () => mockGgDoPush.exec(
@@ -1959,7 +2042,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -1989,7 +2072,7 @@ void main() {
 
     test('aborts when GetVersion throws', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -2052,14 +2135,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -2102,7 +2195,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -2135,7 +2228,7 @@ void main() {
       'updates dependency ref versions when a known ref is used later',
       () async {
         final mockGgDoPublish = MockGgDoPublish();
-        final mockGgDoCommit = MockGgDoCommit();
+        final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
@@ -2215,14 +2308,24 @@ void main() {
         ).thenAnswer((_) async {});
 
         when(
-          () => mockGgDoCommit.exec(
+          () => mockSystemCommit.commit(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             message: any(named: 'message'),
-            force: any(named: 'force'),
-            updateChangeLog: any(named: 'updateChangeLog'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
         when(
           () => mockGgDoPush.exec(
             directory: any(named: 'directory'),
@@ -2272,7 +2375,7 @@ void main() {
               ggLog: ggLog,
               ensureInRegistry: mockEnsureInRegistry,
               ggDoPublish: mockGgDoPublish,
-              ggDoCommit: mockGgDoCommit,
+              systemCommit: mockSystemCommit,
               ggDoPush: mockGgDoPush,
               unlocalizeRefs: mockUnlocalizeRefs,
               sortedProcessingList: mockSortedProcessingList,
@@ -2300,7 +2403,7 @@ void main() {
 
     test('aborts when updating dependent ref version fails', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -2375,14 +2478,24 @@ void main() {
       ).thenThrow(Exception('update failed'));
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -2432,7 +2545,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -2463,7 +2576,7 @@ void main() {
 
     test('invokes RestorePublishTo after unlocalize for each repo', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -2520,15 +2633,24 @@ void main() {
         order.add('restore');
       });
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
       ).thenAnswer((_) async {
         order.add('commit');
+        return const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        );
       });
       when(
         () => mockGgDoPush.exec(
@@ -2585,7 +2707,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -2608,7 +2730,7 @@ void main() {
 
     test('aborts when RestorePublishTo throws', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -2659,7 +2781,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -2685,7 +2807,7 @@ void main() {
     test('aborts when the dart refresh fails on a resume with step progress '
         '— the only path that still runs it', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -2773,7 +2895,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -2801,12 +2923,15 @@ void main() {
       );
 
       verifyNever(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
       );
     });
@@ -2824,7 +2949,7 @@ void main() {
         ).writeAsStringSync('{}');
 
         final mockGgDoPublish = MockGgDoPublish();
-        final mockGgDoCommit = MockGgDoCommit();
+        final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockRestorePublishTo = MockRestorePublishTo();
@@ -2900,14 +3025,24 @@ void main() {
           ),
         ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
         when(
-          () => mockGgDoCommit.exec(
+          () => mockSystemCommit.commit(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             message: any(named: 'message'),
-            force: any(named: 'force'),
-            updateChangeLog: any(named: 'updateChangeLog'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
         when(
           () => mockGgDoPush.exec(
             directory: any(named: 'directory'),
@@ -2942,7 +3077,7 @@ void main() {
               ggLog: ggLog,
               ensureInRegistry: mockEnsureInRegistry,
               ggDoPublish: mockGgDoPublish,
-              ggDoCommit: mockGgDoCommit,
+              systemCommit: mockSystemCommit,
               ggDoPush: mockGgDoPush,
               unlocalizeRefs: mockUnlocalizeRefs,
               restorePublishTo: mockRestorePublishTo,
@@ -2989,7 +3124,7 @@ void main() {
       File(path.join(ticketDir.path, 'A', 'pubspec.yaml')).deleteSync();
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -3052,14 +3187,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -3094,7 +3239,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -3140,7 +3285,7 @@ void main() {
       ).writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -3226,14 +3371,24 @@ void main() {
         ),
       ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -3268,7 +3423,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -3324,7 +3479,7 @@ void main() {
       ).writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -3408,14 +3563,24 @@ void main() {
         ),
       ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -3450,7 +3615,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -3524,7 +3689,7 @@ void main() {
 
   group('DoPublishCommand rollback on failure', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockRestorePublishTo mockRestorePublishTo;
@@ -3543,7 +3708,7 @@ void main() {
           makePublishCommand(
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
             ggDoPush: mockGgDoPush,
@@ -3595,7 +3760,7 @@ void main() {
 
     setUp(() {
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockRestorePublishTo = MockRestorePublishTo();
@@ -3642,14 +3807,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -4508,7 +4683,7 @@ void main() {
 
   group('DoPublishCommand configure + resume', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockSortedProcessingList mockSortedProcessingList;
@@ -4530,7 +4705,7 @@ void main() {
 
     setUp(() {
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockSortedProcessingList = MockSortedProcessingList();
@@ -4566,14 +4741,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -4630,7 +4815,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -5315,7 +5500,7 @@ void main() {
 
   group('DoPublishCommand skip unchanged repos', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockSortedProcessingList mockSortedProcessingList;
@@ -5335,7 +5520,7 @@ void main() {
 
     setUp(() {
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockSortedProcessingList = MockSortedProcessingList();
@@ -5387,14 +5572,24 @@ void main() {
       ).thenAnswer((_) async {});
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
 
       when(
         () => mockGgDoPush.exec(
@@ -5477,7 +5672,7 @@ void main() {
           ggLog: ggLog,
           ensureInRegistry: mockEnsureInRegistry,
           ggDoPublish: mockGgDoPublish,
-          ggDoCommit: mockGgDoCommit,
+          systemCommit: mockSystemCommit,
           ggDoPush: mockGgDoPush,
           unlocalizeRefs: mockUnlocalizeRefs,
           sortedProcessingList: mockSortedProcessingList,
@@ -5513,6 +5708,25 @@ void main() {
               );
       });
     }
+
+    test(
+      'reports that nothing was published when every repo is unchanged',
+      () async {
+        // A ticket carrying nothing but gg's own bookkeeping releases
+        // nothing — claiming »All repos published« would be a lie the user
+        // acts on.
+        stubSkipCheck({'A', 'B'});
+
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        final log = messages.join('\n');
+        expect(
+          log,
+          contains('Nothing to publish — every repo is already published'),
+        );
+        expect(log, isNot(contains('All repos published')));
+      },
+    );
 
     test('skips an unchanged repo and still propagates its version', () async {
       stubSkipCheck({'A'});
@@ -6151,7 +6365,7 @@ void main() {
 
   group('DoPublishCommand in merge mode', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockRestorePublishTo mockRestorePublishTo;
@@ -6166,7 +6380,7 @@ void main() {
 
     setUp(() {
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockRestorePublishTo = MockRestorePublishTo();
@@ -6230,14 +6444,24 @@ void main() {
       ).thenAnswer((_) async {});
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
 
       when(
         () => mockGgDoPush.exec(
@@ -6293,7 +6517,7 @@ void main() {
             ensureInRegistry: mockEnsureInRegistry,
             mergeOnly: true,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -6322,7 +6546,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -6606,7 +6830,7 @@ void main() {
   // ...........................................................................
   group('DoPublishCommand per repo publish gate', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockRestorePublishTo mockRestorePublishTo;
@@ -6632,7 +6856,7 @@ void main() {
     setUp(() {
       calls = [];
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockRestorePublishTo = MockRestorePublishTo();
@@ -6713,14 +6937,25 @@ void main() {
       ).thenAnswer((i) async => calls.add('cancommit:${repoOf(i)}'));
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((i) async => calls.add('commit:${repoOf(i)}'));
+      ).thenAnswer((i) async {
+        calls.add('commit:${repoOf(i)}');
+        return const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        );
+      });
 
       when(
         () => mockCanPublishCommand.checkRepo(
@@ -6793,7 +7028,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -6905,7 +7140,7 @@ void main() {
           ggLog: ggLog,
           ensureInRegistry: mockEnsureInRegistry,
           ggDoPublish: mockGgDoPublish,
-          ggDoCommit: mockGgDoCommit,
+          systemCommit: mockSystemCommit,
           ggDoPush: mockGgDoPush,
           unlocalizeRefs: mockUnlocalizeRefs,
           restorePublishTo: mockRestorePublishTo,
@@ -7440,7 +7675,7 @@ void _stubRepoSnapshot(MockProcessRunner runner) {
 DoPublishCommand makePublishCommand({
   required GgLog ggLog,
   bool mergeOnly = false,
-  gg.DoCommit? ggDoCommit,
+  gg.GgSystemCommit? systemCommit,
   gg.DoUpgradeDeps? ggDoUpgradeDeps,
   gg.CanCommit? ggCanCommit,
   ChangeRefsToPubDev? unlocalizeRefs,
@@ -7518,7 +7753,7 @@ DoPublishCommand makePublishCommand({
   return DoPublishCommand(
     ggLog: ggLog,
     mergeOnly: mergeOnly,
-    ggDoCommit: ggDoCommit,
+    systemCommit: systemCommit,
     ggDoUpgradeDeps: ggDoUpgradeDeps,
     ggCanCommit: ggCanCommit,
     unlocalizeRefs: unlocalizeRefs,

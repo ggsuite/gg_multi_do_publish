@@ -12,6 +12,7 @@ import 'package:gg_lang/gg_lang.dart' as gg_lang;
 // ignore: lines_longer_than_80_chars
 import 'package:gg_local_package_dependencies/gg_local_package_dependencies.dart';
 import 'package:gg_localize_refs/gg_localize_refs.dart';
+import 'package:gg_git/gg_git.dart';
 import 'package:gg_log/gg_log.dart';
 import 'package:gg_one/gg_one.dart' as gg;
 import 'package:gg_status_printer/gg_status_printer.dart';
@@ -122,7 +123,7 @@ class DoPublishCommand extends DirCommand<void> {
     super.name = 'publish',
     super.description = 'Publish all repos of the current ticket',
     this.mergeOnly = false,
-    gg.DoCommit? ggDoCommit,
+    gg.GgSystemCommit? systemCommit,
     gg.DoUpgradeDeps? ggDoUpgradeDeps,
     gg.CanCommit? ggCanCommit,
     ChangeRefsToPubDev? unlocalizeRefs,
@@ -147,7 +148,7 @@ class DoPublishCommand extends DirCommand<void> {
     TicketState? ticketState,
     gg.InteractAdapter? interactAdapter,
     gg.HasTerminal? hasTerminal,
-  }) : _ggDoCommit = ggDoCommit ?? gg.DoCommit(ggLog: ggLog),
+  }) : _systemCommit = systemCommit ?? gg.GgSystemCommit(ggLog: ggLog),
        _ggDoUpgradeDeps = ggDoUpgradeDeps ?? gg.DoUpgradeDeps(ggLog: ggLog),
        _ggCanCommit = ggCanCommit ?? gg.CanCommit(ggLog: ggLog),
        _unlocalizeRefs = unlocalizeRefs ?? ChangeRefsToPubDev(ggLog: ggLog),
@@ -198,8 +199,9 @@ class DoPublishCommand extends DirCommand<void> {
   /// The noun used in user-facing messages.
   String get _action => mergeOnly ? 'merge' : 'publish';
 
-  /// Instance of gg DoCommit
-  final gg.DoCommit _ggDoCommit;
+  /// Writes gg's bookkeeping commits — pathspec-limited to gg-owned files,
+  /// with any pending user work saved in its own commit first.
+  final gg.GgSystemCommit _systemCommit;
 
   /// Upgrades the dependencies of a repo right before it is published.
   final gg.DoUpgradeDeps _ggDoUpgradeDeps;
@@ -479,6 +481,11 @@ class DoPublishCommand extends DirCommand<void> {
     // Map of reference name to version captured from repos processed so far.
     final refVersions = <String, String>{};
 
+    // Whether this run released (or merged) anything at all. A run in which
+    // every repo was skipped must not claim otherwise — the ticket carries
+    // nothing but gg's own bookkeeping and everything is already out there.
+    var anythingProcessed = false;
+
     // Step 6: Iterate over each repository and publish (or resume).
     for (final repo in subs) {
       final repoDir = repo.directory;
@@ -573,6 +580,7 @@ class DoPublishCommand extends DirCommand<void> {
         // Record success *now*, before the network-dependent version capture
         // below — so a transient failure there cannot lose the marker and
         // re-run this already-published repo on a later `--continue`.
+        anythingProcessed = true;
         publishConfig = publishConfig.withRepoStatus(repoName, 'published');
         await publishConfig.save(file: runtimeFile);
         taskLog(cDetail('✓ $repoName: $_done successfully.'));
@@ -674,7 +682,11 @@ class DoPublishCommand extends DirCommand<void> {
       ggLog(cWarn('Could not refresh the didReview state: $e'));
     }
 
-    ggLog('\nAll repos $_done\n');
+    ggLog(
+      anythingProcessed
+          ? '\nAll repos $_done\n'
+          : '\nNothing to $_action — every repo is already $_done\n',
+    );
 
     // Step 9: Carry out what the user decided up front (Step 4b). Every
     // repo is $_done at this point — the ones released just now are back on
@@ -972,14 +984,14 @@ class DoPublishCommand extends DirCommand<void> {
 
     // Commit — sweeps the reference changes and the upgrade changes into
     // one bookkeeping commit.
-    await _ggDoCommit.exec(
+    // A system commit: the ref and upgrade changes are gg's own. Anything
+    // else the tree carries is the user's and gets its own, prefix-less
+    // commit first, so the release history says who wrote what.
+    await _systemCommit.commit(
       directory: repoDir,
       ggLog: taskLog,
-      message: '#gg: changed references to pub.dev',
-      force: true,
-      // Bookkeeping, not a change of the package — keep it out of
-      // CHANGELOG.md (»gg do commit --no-log«).
-      updateChangeLog: false,
+      message: '${ggCommitPrefix}changed references to pub.dev',
+      userCommitMessage: gg.readTicketDescriptionForRepo,
     );
 
     // Can this repo be published? Only NOW is the question answerable: the
@@ -1119,7 +1131,7 @@ class DoPublishCommand extends DirCommand<void> {
           await _runGit(<String>[
             'merge',
             '-m',
-            '#gg: merge the published $mainBranch back into $branch',
+            '$ggMergeBackPrefix$mainBranch back into $branch',
             mainBranch,
           ], repoDir: repoDir);
         } catch (e) {
@@ -1150,14 +1162,11 @@ class DoPublishCommand extends DirCommand<void> {
         ggLog: taskLog,
       );
 
-      await _ggDoCommit.exec(
+      await _systemCommit.commit(
         directory: repoDir,
         ggLog: taskLog,
-        message: '#gg: restored local workspace references',
-        force: true,
-        // Bookkeeping, not a change of the package — keep it out of
-        // CHANGELOG.md (»gg do commit --no-log«).
-        updateChangeLog: false,
+        message: '${ggCommitPrefix}restored local workspace references',
+        userCommitMessage: gg.readTicketDescriptionForRepo,
       );
 
       if (!mergeOnly) {

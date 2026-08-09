@@ -9,6 +9,7 @@ environment:
 dependencies:
   gg_args: ^3.0.0
   gg_console_colors: ^2.3.0
+  gg_git: ^4.0.0
   gg_lang: ^0.5.0
   gg_local_package_dependencies: ^3.0.0
   gg_localize_refs: ^4.1.0
