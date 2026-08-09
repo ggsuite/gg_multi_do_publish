@@ -1220,6 +1220,12 @@ class DoPublishCommand extends DirCommand<void> {
       ggLog: taskLog,
       message: '${gg.ggCommitPrefix}changed references to pub.dev',
       userCommitMessage: gg.readTicketDescriptionForRepo,
+      // The unlocalization above rewrote the manifests, which is exactly
+      // what the recorded »everything is committed« hash covers — the gate
+      // right below reads it through `did commit`. Without recording it
+      // anew, every repo with a sibling dependency fails with a spurious
+      // »Not committed yet« the moment that sibling's version moves.
+      stateKey: gg.GgState.doCommitKey,
     );
 
     // Can this repo be published? Only NOW is the question answerable: the
@@ -1394,6 +1400,10 @@ class DoPublishCommand extends DirCommand<void> {
         ggLog: taskLog,
         message: '${gg.ggCommitPrefix}restored local workspace references',
         userCommitMessage: gg.readTicketDescriptionForRepo,
+        // Re-localizing rewrites the manifests again — record the state so
+        // the push below and the next command in the ticket do not see a
+        // repo that looks uncommitted.
+        stateKey: gg.GgState.doCommitKey,
       );
 
       await _ggDoPush.exec(directory: repoDir, ggLog: taskLog);

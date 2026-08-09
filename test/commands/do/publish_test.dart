@@ -664,6 +664,24 @@ void main() {
           ggLog: any(named: 'ggLog'),
         ),
       ).called(2);
+
+      // The unlocalization rewrites the manifests of every repo whose
+      // sibling versions moved, and `gg can publish` — which runs right
+      // after, per repo — answers »is everything committed?« from the
+      // recorded hash. Without recording it here the gate reports a
+      // spurious »Not committed yet« and the release stops mid-run.
+      verify(
+        () => mockSystemCommit.commit(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: '#gg: changed references to pub.dev',
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: gg.GgState.doCommitKey,
+        ),
+      ).called(2);
       verify(
         () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
@@ -673,7 +691,9 @@ void main() {
           includeUntracked: any(named: 'includeUntracked'),
           ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
           userCommitMessage: any(named: 'userCommitMessage'),
-          stateKey: any(named: 'stateKey'),
+          // Re-localizing rewrites the manifests, so the recorded
+          // »everything is committed« hash has to be taken anew.
+          stateKey: gg.GgState.doCommitKey,
         ),
       ).called(2);
 
