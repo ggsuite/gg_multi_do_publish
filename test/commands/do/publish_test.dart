@@ -21,9 +21,10 @@ import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
 import 'package:gg_multi_do_publish/src/commands/do/configure_publish.dart'
-    show DoConfigurePublishCommand;
+    show DoConfigurePublishCommand, RepoPublishPlan;
 import 'package:gg_multi_do_publish/src/commands/do/publish.dart';
 import 'package:gg_one/gg_one.dart' as gg;
+import 'package:gg_publish/gg_publish.dart' show PublishedVersion;
 import 'package:gg_status_printer/gg_status_printer.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as path;
@@ -56,6 +57,8 @@ class MockCanPublishCommand extends Mock implements CanPublishCommand {}
 class MockDoPushCommand extends Mock implements DoPushCommand {}
 
 /// Mock for DoConfigurePublishCommand
+class MockPublishedVersion extends Mock implements PublishedVersion {}
+
 class MockConfigurePublishCommand extends Mock
     implements DoConfigurePublishCommand {}
 
@@ -4809,26 +4812,42 @@ void main() {
       );
     });
 
-    CommandRunner<void> buildRunner() =>
-        CommandRunner<void>('test', 'do publish ticket')..addCommand(
-          makePublishCommand(
-            ggLog: ggLog,
-            ensureInRegistry: mockEnsureInRegistry,
-            ggDoPublish: mockGgDoPublish,
-            systemCommit: mockSystemCommit,
-            ggDoPush: mockGgDoPush,
-            unlocalizeRefs: mockUnlocalizeRefs,
-            sortedProcessingList: mockSortedProcessingList,
-            processRunner: mockProcessRunner.call,
-            canPublishCommand: mockCanPublishCommand,
-            didReviewCommand: mockDidReviewCommand,
-            getVersionCommand: mockGetVersion,
-            setRefVersionCommand: mockSetRefVersion,
-            getRefVersionCommand: mockGetRefVersion,
-            pubDevChecker: mockPubDevChecker,
-            doConfigurePublishCommand: mockConfigure,
+    CommandRunner<void> buildRunner({gg.HasTerminal? hasTerminal}) {
+      // With a terminal the run also asks what happens to the ticket — these
+      // tests are about the configuration, so the offer is declined.
+      gg.InteractAdapter? adapter;
+      if (hasTerminal != null) {
+        final mock = MockInteractAdapter();
+        when(
+          () => mock.choose(
+            message: any(named: 'message'),
+            options: any(named: 'options'),
           ),
-        );
+        ).thenAnswer((_) async => 1);
+        adapter = mock;
+      }
+      return CommandRunner<void>('test', 'do publish ticket')..addCommand(
+        makePublishCommand(
+          ggLog: ggLog,
+          interactAdapter: adapter,
+          ensureInRegistry: mockEnsureInRegistry,
+          ggDoPublish: mockGgDoPublish,
+          systemCommit: mockSystemCommit,
+          ggDoPush: mockGgDoPush,
+          unlocalizeRefs: mockUnlocalizeRefs,
+          sortedProcessingList: mockSortedProcessingList,
+          processRunner: mockProcessRunner.call,
+          canPublishCommand: mockCanPublishCommand,
+          didReviewCommand: mockDidReviewCommand,
+          getVersionCommand: mockGetVersion,
+          setRefVersionCommand: mockSetRefVersion,
+          getRefVersionCommand: mockGetRefVersion,
+          pubDevChecker: mockPubDevChecker,
+          doConfigurePublishCommand: mockConfigure,
+          hasTerminal: hasTerminal,
+        ),
+      );
+    }
 
     test(
       'a registry-visibility lookup failure does not abort the publish',
@@ -4951,28 +4970,31 @@ void main() {
 
     test('--restart ignores the saved config and reconfigures', () async {
       when(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenAnswer(
-        (_) async => gg.PublishConfig(
-          versionIncrement: 'patch',
-          mergeMessage: 'reconfigured',
+        (_) async => RepoPublishPlan(
+          override: gg.RepoOverride(
+            versionIncrement: 'patch',
+            mergeMessage: 'reconfigured',
+          ),
+          baseline: Version(1, 0, 0),
         ),
       );
 
-      await buildRunner().run([
-        'publish',
-        '--input',
-        ticketDir.path,
-        '--restart',
-      ]);
+      await buildRunner(
+        hasTerminal: () => true,
+      ).run(['publish', '--input', ticketDir.path, '--restart']);
 
+      // Asked per repo now — and only for the repos that really publish.
       verify(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).called(1);
     });
@@ -4982,31 +5004,31 @@ void main() {
       // handed to it as the default merge message.
       runtimeFile.deleteSync();
       when(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-          defaultMergeMessage: any(named: 'defaultMergeMessage'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenAnswer(
-        (_) async => gg.PublishConfig(
-          versionIncrement: 'patch',
-          mergeMessage: 'Release msg',
+        (_) async => RepoPublishPlan(
+          override: gg.RepoOverride(
+            versionIncrement: 'patch',
+            mergeMessage: 'Release msg',
+          ),
+          baseline: Version(1, 0, 0),
         ),
       );
 
-      await buildRunner().run([
-        'publish',
-        '--input',
-        ticketDir.path,
-        '-m',
-        'Release msg',
-      ]);
+      await buildRunner(
+        hasTerminal: () => true,
+      ).run(['publish', '--input', ticketDir.path, '-m', 'Release msg']);
 
+      // -m becomes the seed of every per-repo prompt.
       verify(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-          defaultMergeMessage: 'Release msg',
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: 'Release msg',
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).called(1);
     });
@@ -5474,24 +5496,24 @@ void main() {
 }
 ''');
       when(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-          defaultMergeMessage: any(named: 'defaultMergeMessage'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenAnswer(
-        (_) async => gg.PublishConfig(
-          versionIncrement: 'patch',
-          mergeMessage: 'reconfigured',
+        (_) async => RepoPublishPlan(
+          override: gg.RepoOverride(
+            versionIncrement: 'patch',
+            mergeMessage: 'reconfigured',
+          ),
+          baseline: Version(1, 0, 0),
         ),
       );
 
-      await buildRunner().run([
-        'publish',
-        '--input',
-        ticketDir.path,
-        '--restart',
-      ]);
+      await buildRunner(
+        hasTerminal: () => true,
+      ).run(['publish', '--input', ticketDir.path, '--restart']);
 
       // Stale gg_one step progress must not seed the reconfigured run.
       expect(repoRuntime.existsSync(), isFalse);
@@ -5666,10 +5688,14 @@ void main() {
       gg.InteractAdapter? interactAdapter,
       gg.HasTerminal? hasTerminal,
       TicketState? ticketState,
+      DoConfigurePublishCommand? doConfigurePublishCommand,
+      PublishedVersion? publishedVersion,
     }) => CommandRunner<void>('test', 'do publish ticket')
       ..addCommand(
         makePublishCommand(
           ggLog: ggLog,
+          doConfigurePublishCommand: doConfigurePublishCommand,
+          publishedVersion: publishedVersion,
           ensureInRegistry: mockEnsureInRegistry,
           ggDoPublish: mockGgDoPublish,
           systemCommit: mockSystemCommit,
@@ -5708,6 +5734,145 @@ void main() {
               );
       });
     }
+
+    test(
+      'predicts the incremented version a dependent resolves against',
+      () async {
+        // A publishes with the increment the config supplies, so nobody is
+        // asked and no baseline travels along — the prediction has to fetch
+        // the published version itself. B must then see A's *next* version,
+        // not its current one.
+        File(
+          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
+        ).writeAsStringSync(
+          jsonEncode({
+            'version_increment': 'minor',
+            'merge_message': 'test merge',
+          }),
+        );
+        stubSkipCheck(<String>{});
+
+        final publishedVersion = MockPublishedVersion();
+        when(
+          () => publishedVersion.get(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer((_) async => Version(1, 2, 3));
+
+        await buildRunner(
+          publishedVersion: publishedVersion,
+        ).run(['publish', '--input', ticketDir.path]);
+
+        // 1.2.3 + minor = 1.3.0 — the version B is judged against.
+        final captured = verify(
+          () => mockSkipCheck.get(
+            repo: any(named: 'repo'),
+            refVersions: captureAny(named: 'refVersions'),
+          ),
+        ).captured;
+        expect(captured.last, containsPair('A', '1.3.0'));
+      },
+    );
+
+    test('fails with an actionable message when nobody can be asked', () async {
+      // A repo needs a release, the config answers nothing for it and stdin
+      // is no terminal — a headless run must say what to do instead of
+      // hanging on a prompt nobody can answer.
+      File(
+        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
+      ).writeAsStringSync(jsonEncode({'repos': <String, dynamic>{}}));
+      stubSkipCheck({'A'});
+
+      await expectLater(
+        buildRunner().run(['publish', '--input', ticketDir.path]),
+        throwsA(
+          isA<Exception>().having(
+            (e) => rmControls(e.toString()),
+            'message',
+            allOf(
+              contains('B needs a publish'),
+              contains('gg do configure-publish'),
+              contains('--config'),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('asks only for the repos the configuration does not cover', () async {
+      // The config answers A but says nothing about B — and A is skipped
+      // anyway, so exactly one question is asked, for B.
+      File(
+        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
+      ).writeAsStringSync(
+        jsonEncode({
+          'repos': {
+            'A': {'version_increment': 'patch', 'merge_message': 'a msg'},
+          },
+        }),
+      );
+      stubSkipCheck({'A'});
+
+      final configure = MockConfigurePublishCommand();
+      when(
+        () => configure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
+        ),
+      ).thenAnswer(
+        (_) async => RepoPublishPlan(
+          override: gg.RepoOverride(
+            versionIncrement: 'minor',
+            mergeMessage: 'asked for B',
+          ),
+          baseline: Version(2, 0, 0),
+        ),
+      );
+
+      final adapter = MockInteractAdapter();
+      when(
+        () => adapter.choose(
+          message: any(named: 'message'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async => 1);
+
+      await buildRunner(
+        doConfigurePublishCommand: configure,
+        interactAdapter: adapter,
+        hasTerminal: () => true,
+      ).run(['publish', '--input', ticketDir.path]);
+
+      final asked = verify(
+        () => configure.configureRepo(
+          repoDir: captureAny(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
+        ),
+      )..called(1);
+      expect(path.basename((asked.captured.single as Directory).path), 'B');
+
+      // The answer reaches the publish.
+      verify(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: 'asked for B',
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
 
     test(
       'reports that nothing was published when every repo is unchanged',
@@ -5992,8 +6157,10 @@ void main() {
 
     group('the end-of-run cleanup offer', () {
       test('offers the cleanup and trashes the ticket on accept', () async {
-        // Both repos skip — the run publishes nothing.
-        stubSkipCheck({'A', 'B'});
+        // A skips, B publishes — a run that releases something is the only
+        // one that reaches the cleanup offer. A run in which nothing happened
+        // is never asked whether the ticket may go to the trash.
+        stubSkipCheck({'A'});
         File(
           path.join(ticketDir.path, 'TICKPB.code-workspace'),
         ).writeAsStringSync('{"folders": []}');
@@ -6195,7 +6362,8 @@ void main() {
       test(
         '--no-delete-remote-branch keeps the branches when trashing',
         () async {
-          stubSkipCheck({'A', 'B'});
+          // B publishes — only a productive run reaches the cleanup offer.
+          stubSkipCheck({'A'});
           final adapter = MockInteractAdapter();
           when(
             () => adapter.choose(
@@ -7694,6 +7862,7 @@ DoPublishCommand makePublishCommand({
   PubDevChecker? pubDevChecker,
   NpmRegistryChecker? npmChecker,
   PublishSkipCheck? publishSkipCheck,
+  PublishedVersion? publishedVersion,
   DoConfigurePublishCommand? doConfigurePublishCommand,
   gg.EnsurePublishConfigIgnored? ensureIgnored,
   EnsureInRegistry? ensureInRegistry,
@@ -7772,6 +7941,7 @@ DoPublishCommand makePublishCommand({
     pubDevChecker: pubDevChecker,
     npmChecker: npmChecker,
     publishSkipCheck: publishSkipCheck,
+    publishedVersion: publishedVersion,
     doConfigurePublishCommand: doConfigurePublishCommand,
     ensureIgnored: ensureIgnored,
     ensureInRegistry: ensureInRegistry,

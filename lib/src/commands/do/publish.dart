@@ -14,9 +14,11 @@ import 'package:gg_local_package_dependencies/gg_local_package_dependencies.dart
 import 'package:gg_localize_refs/gg_localize_refs.dart';
 import 'package:gg_git/gg_git.dart';
 import 'package:gg_log/gg_log.dart';
+import 'package:gg_publish/gg_publish.dart' show PublishedVersion;
 import 'package:gg_one/gg_one.dart' as gg;
 import 'package:gg_status_printer/gg_status_printer.dart';
 import 'package:path/path.dart' as path;
+import 'package:pub_semver/pub_semver.dart';
 
 import 'package:gg_multi_do_publish/src/backend/ensure_in_registry.dart';
 import 'package:gg_multi_core/gg_multi_core.dart' as git_snapshot;
@@ -142,6 +144,7 @@ class DoPublishCommand extends DirCommand<void> {
     PubDevChecker? pubDevChecker,
     NpmRegistryChecker? npmChecker,
     PublishSkipCheck? publishSkipCheck,
+    PublishedVersion? publishedVersion,
     DoConfigurePublishCommand? doConfigurePublishCommand,
     gg.EnsurePublishConfigIgnored? ensureIgnored,
     EnsureInRegistry? ensureInRegistry,
@@ -168,6 +171,7 @@ class DoPublishCommand extends DirCommand<void> {
        _pubDevChecker = pubDevChecker ?? PubDevChecker(),
        _npmChecker = npmChecker ?? NpmRegistryChecker(),
        _publishSkipCheck = publishSkipCheck ?? PublishSkipCheck(),
+       _publishedVersion = publishedVersion ?? PublishedVersion(ggLog: ggLog),
        _doConfigurePublishCommand =
            doConfigurePublishCommand ?? DoConfigurePublishCommand(ggLog: ggLog),
        _ensureIgnored =
@@ -260,6 +264,10 @@ class DoPublishCommand extends DirCommand<void> {
 
   /// Decides whether an unchanged repo needs to be published at all.
   final PublishSkipCheck _publishSkipCheck;
+
+  /// Reads the version a repo last published to its registry — the base the
+  /// planning pass applies the chosen increment to.
+  final PublishedVersion _publishedVersion;
 
   /// Interactively builds the `.gg/gg-publish.json` config when the publish
   /// is started without one.
@@ -375,39 +383,19 @@ class DoPublishCommand extends DirCommand<void> {
       _throwOnLocalizedRefs(subs);
     }
 
-    // Step 3: The review gate for fresh runs — *before* the configuration is
-    // resolved: resolving may ask the interactive version increment and
-    // merge message questions, and nobody should answer them for a state
-    // the publish then refuses. Two cases are judged later instead:
-    //   * `--continue` — after the config is loaded, because a resume with
-    //     irreversible progress skips the gate entirely (see below).
-    //   * a leftover runtime file with progress markers (without
-    //     `--restart`, which discards them) — the config resolution throws
-    //     the more specific »unfinished publish« error before any question.
-    if (!continueRun &&
-        (restart ||
-            !_ticketHasLeftoverProgress(
-              runtimeFile: runtimeFile,
-              ticketDir: ticketDir,
-            ))) {
-      await _throwUnlessReviewed(ticketDir: ticketDir, ggLog: ggLog);
-    }
-
-    // Step 4: Resolve the publish configuration up front so the rest of the
-    // run is non-interactive. Precedence: --continue > --config > the runtime
-    // .gg/gg-publish.json > the legacy <ticket>/.gg-publish.json > an
-    // interactive `do configure-publish`.
-    final resolved = await _resolvePublishConfig(
+    // Step 3: Load the configuration from the files that may supply it.
+    // This stays up front: the runtime file is the resume anchor, and a
+    // leftover one carrying progress markers must be reported before anything
+    // else happens. Only the *interactive* branch moves behind the checks.
+    final loaded = await _loadExistingPublishConfig(
       ticketDir: ticketDir,
       runtimeFile: runtimeFile,
       configArg: configArg,
       continueRun: continueRun,
       restart: restart,
-      messageArg: messageArg,
-      ggLog: ggLog,
     );
-    gg.PublishConfig publishConfig = resolved.config;
-    final String configSourcePath = resolved.sourcePath;
+    gg.PublishConfig? loadedConfig = loaded.config;
+    final String configSourcePath = loaded.sourcePath;
 
     // --restart discards not only the ticket-level config but also the
     // repo-level step progress gg_one recorded in an earlier run.
@@ -420,40 +408,26 @@ class DoPublishCommand extends DirCommand<void> {
       }
     }
 
-    // Step 4b: The last interactive question of the run — what happens to
-    // the ticket once everything is published. It is asked here, together
-    // with the version increments, so no prompt sits between the
-    // irreversible publish steps or at the very end of a long unattended
-    // run. The answer is applied after the last repo is through.
-    final closeTicketWhenDone = await _offerTicketCleanup(
-      ticketName: path.basename(ticketDir.path),
-    );
-
-    // Step 5: The review gate for resumes + the ticket wide validation. The
-    // per-repo `gg can publish` gate is NOT part of this — it runs inside
+    // Step 4: The review gate and the ticket wide validation. The per-repo
+    // `gg can publish` gate is NOT part of this — it runs inside
     // _publishRepo, right before the repo is published (see there).
-    // Skipped when genuinely resuming a run that
-    // already made irreversible progress: a repo finished ('published'), or
-    // a repo's own .gg/gg-publish.json records completed publish steps —
-    // e.g. the FIRST repo failed after its registry publish or merge.
-    // Re-running the ticket wide checks — whose push step merges main into
-    // the feature branches — on such a partially merged ticket would fail
-    // and permanently block the resume; the mid-publish commits would also
-    // fail the `did review` hash. A `--continue` after a failure without
-    // progress still runs both, so an unreviewed state is never published.
-    // gg_one re-checks `did commit` per repo on resume, so raw commits added
-    // after the failure are still caught.
+    // Skipped when genuinely resuming a run that already made irreversible
+    // progress: a repo finished ('published'), or a repo's own
+    // .gg/gg-publish.json records completed publish steps — e.g. the FIRST
+    // repo failed after its registry publish or merge. Re-running the ticket
+    // wide checks — whose push step merges main into the feature branches —
+    // on such a partially merged ticket would fail and permanently block the
+    // resume; the mid-publish commits would also fail the `did review` hash.
+    // A `--continue` after a failure without progress still runs both, so an
+    // unreviewed state is never published. gg_one re-checks `did commit` per
+    // repo on resume, so raw commits added after the failure are still caught.
     final resumingMidPublish =
         continueRun &&
-        (publishConfig.repos.values.any((r) => r.status == 'published') ||
+        ((loadedConfig?.repos.values.any((r) => r.status == 'published') ??
+                false) ||
             subs.any((repo) => _repoHasStepProgress(repo.directory)));
     if (!resumingMidPublish) {
-      // A fresh run already passed the gate before the configuration was
-      // resolved (step 3); a `--continue` without irreversible progress is
-      // checked here.
-      if (continueRun) {
-        await _throwUnlessReviewed(ticketDir: ticketDir, ggLog: ggLog);
-      }
+      await _throwUnlessReviewed(ticketDir: ticketDir, ggLog: ggLog);
 
       try {
         await _canPublishCommand.checkTicket(
@@ -474,6 +448,41 @@ class DoPublishCommand extends DirCommand<void> {
         throw Exception(cDetail('Cannot publish.'));
       }
     }
+
+    // Step 5: Plan the run. Only now is the state up to date — »do push« has
+    // merged the main branches in and refreshed the dependencies — so only
+    // now can the skip check be trusted. The pass decides per repo whether it
+    // needs a release and asks the version/message questions for exactly the
+    // repos that do.
+    final plan = await _planPublish(
+      subs: subs,
+      ticketDir: ticketDir,
+      runtimeFile: runtimeFile,
+      config: loadedConfig,
+      continueRun: continueRun,
+      publishUnchanged: publishUnchanged,
+      isMergeOnly: isMergeOnly,
+      messageArg: messageArg,
+      ggLog: ggLog,
+    );
+    final gg.PublishConfig planned = plan.config;
+    gg.PublishConfig publishConfig = planned;
+
+    // A run that neither publishes anything nor finishes a partly published
+    // ticket is a no-op: the ticket carries nothing but gg's own bookkeeping.
+    final anyAlreadyPublished =
+        continueRun && planned.repos.values.any((r) => r.status == 'published');
+    final isNoOpRun = !plan.anyPublishes && !anyAlreadyPublished;
+
+    // Step 6: The last interactive question — what happens to the ticket once
+    // everything is published. Asked here so no prompt sits between the
+    // irreversible publish steps or at the very end of a long unattended run.
+    // A no-op run is not asked at all: the user expected a release, nothing
+    // happened, and offering to trash the ticket would be a surprising side
+    // effect of doing nothing.
+    final closeTicketWhenDone = isNoOpRun
+        ? false
+        : await _offerTicketCleanup(ticketName: path.basename(ticketDir.path));
 
     final publishedPackages = <String, _PublishedPackageState>{};
     final confirmedPubDevVersions = <String>{};
@@ -499,19 +508,17 @@ class DoPublishCommand extends DirCommand<void> {
       // fresh on every run — also on --continue, where a repo marked
       // 'skipped' earlier is re-evaluated instead of trusted, so commits
       // added after a failed run are never lost to a stale marker.
-      final skipDecision = (!alreadyPublished && !publishUnchanged)
-          ? await _publishSkipCheck.get(repo: repo, refVersions: refVersions)
-          : null;
+      // The planning pass already decided and — for a publishing repo — has
+      // the answers. It may only be tightened, never loosened: it asked the
+      // questions for everything it marked as publishing, so a repo that
+      // meanwhile turned skippable is published anyway rather than leaving
+      // those answers unused.
+      final skip = !alreadyPublished && !plan.publishes.contains(repoName);
 
       if (alreadyPublished) {
         ggLog('\n${cH1(repoName)} already $_done — skipping.');
-      } else if (skipDecision?.skip ?? false) {
-        ggLog(
-          [
-            '\n${cH1(repoName)}',
-            cDetail('✓ Not $_done. ${skipDecision!.reason}'),
-          ].join('\n'),
-        );
+      } else if (skip) {
+        // The planning pass already reported the verdict per repo.
         publishConfig = publishConfig.withRepoStatus(repoName, 'skipped');
         await publishConfig.save(file: runtimeFile);
 
@@ -528,13 +535,6 @@ class DoPublishCommand extends DirCommand<void> {
           }
         }
       } else {
-        if (skipDecision != null) {
-          taskLog(
-            '$repoName: ${isMergeOnly ? 'merging' : 'publishing'} — '
-            '${skipDecision.reason}.',
-          );
-        }
-
         await _waitForPublishedDependenciesIfNeeded(
           currentRepo: repo,
           publishedPackages: publishedPackages,
@@ -688,6 +688,9 @@ class DoPublishCommand extends DirCommand<void> {
           : '\nNothing to $_action — every repo is already $_done\n',
     );
 
+    // A no-op run leaves the ticket exactly as it was; the hint below already
+    // says so, and there is nothing to clean up.
+
     // Step 9: Carry out what the user decided up front (Step 4b). Every
     // repo is $_done at this point — the ones released just now are back on
     // their feature branches with restored references, the skipped ones
@@ -707,6 +710,255 @@ class DoPublishCommand extends DirCommand<void> {
     }
 
     _logTicketKeptHint(ggLog, path.basename(ticketDir.path));
+  }
+
+  /// The outcome of the planning pass.
+  ///
+  /// [config] is the configuration the run publishes with — the loaded one,
+  /// extended by the answers the pass collected. [publishes] names the repos
+  /// that need a release; [anyPublishes] is the short answer.
+  Future<({gg.PublishConfig config, Set<String> publishes, bool anyPublishes})>
+  _planPublish({
+    required List<Node> subs,
+    required Directory ticketDir,
+    required File runtimeFile,
+    required gg.PublishConfig? config,
+    required bool continueRun,
+    required bool publishUnchanged,
+    required bool isMergeOnly,
+    required String? messageArg,
+    required GgLog ggLog,
+  }) async {
+    final seedMessage = DoConfigurePublishCommand.seedMessageFor(
+      ticketDir: ticketDir,
+      defaultMergeMessage: messageArg,
+    );
+
+    // The versions later repos are judged against. A skipped repo contributes
+    // its unchanged manifest version, a publishing one the version its chosen
+    // increment will produce — computed exactly like gg_one computes it, from
+    // the version last seen on the registry.
+    final refVersions = <String, String>{};
+    final answers = <String, gg.RepoOverride>{};
+    final publishes = <String>{};
+
+    // One pass suffices: `subs` is in dependency order, and a repo's decision
+    // depends only on its own state and on the versions of dependencies that
+    // come before it — those are final by the time it is reached.
+    for (final repo in subs) {
+      final repoDir = repo.directory;
+      final repoName = path.basename(repoDir.path);
+
+      final alreadyPublished =
+          continueRun && (config?.statusForRepo(repoName) == 'published');
+
+      bool doesPublish;
+      String reason;
+      if (alreadyPublished) {
+        doesPublish = false;
+        reason = 'already $_done';
+      } else if (publishUnchanged) {
+        doesPublish = true;
+        reason = '--publish-unchanged';
+      } else if (_repoHasStepProgress(repoDir)) {
+        // Its version is bumped and possibly uploaded — a skip would leave a
+        // prepared version unreleased forever.
+        doesPublish = true;
+        reason = 'a previous run already started publishing it';
+      } else {
+        final decision = await _publishSkipCheck.get(
+          repo: repo,
+          refVersions: refVersions,
+        );
+        doesPublish = !decision.skip;
+        reason = decision.reason;
+      }
+
+      Version? baseline;
+      if (doesPublish) {
+        publishes.add(repoName);
+
+        // Ask only what the configuration does not already answer.
+        if (!_configCovers(config, repoName, isMergeOnly)) {
+          _throwWhenCannotAsk(repoName);
+          ggLog('\n${cH1(repoName)}');
+          final asked = await _doConfigurePublishCommand.configureRepo(
+            repoDir: repoDir,
+            seedMessage: seedMessage,
+            mergeOnly: isMergeOnly,
+          );
+          answers[repoName] = asked.override;
+          baseline = asked.baseline;
+        }
+      } else if (!alreadyPublished) {
+        ggLog(
+          ['\n${cH1(repoName)}', cDetail('✓ Not $_done. $reason')].join('\n'),
+        );
+      }
+
+      // Predict what later repos will resolve against.
+      final predicted = await _predictedVersion(
+        repoDir: repoDir,
+        repoName: repoName,
+        doesPublish: doesPublish,
+        isMergeOnly: isMergeOnly,
+        increment:
+            answers[repoName]?.versionIncrement ??
+            _incrementFor(config, repoName),
+        channel: config?.channelForRepo(repoName),
+        baseline: baseline,
+      );
+
+      for (final name in (await _publishedNames(repoDir, repoName)).values) {
+        if (predicted != null && predicted.isNotEmpty) {
+          refVersions[name] = predicted;
+        } else {
+          // Unknown beats a guess: a dependent then publishes rather than
+          // resolving against a version that may never exist.
+          refVersions.remove(name);
+        }
+      }
+    }
+
+    final merged = _mergedConfig(base: config, answers: answers);
+    if (publishes.isNotEmpty || config != null) {
+      await merged.save(file: runtimeFile);
+    }
+
+    return (
+      config: merged,
+      publishes: publishes,
+      anyPublishes: publishes.isNotEmpty,
+    );
+  }
+
+  /// Whether [config] already answers every question [repoName] needs.
+  ///
+  /// Asks the config itself, so the top-level defaults count exactly as much
+  /// as a per-repo override — `forRepo` throws when neither supplies a value.
+  bool _configCovers(
+    gg.PublishConfig? config,
+    String repoName,
+    bool isMergeOnly,
+  ) {
+    if (config == null) {
+      return false;
+    }
+    try {
+      config.forRepo(
+        repoName: repoName,
+        configPath: '',
+        requireVersionIncrement: !isMergeOnly,
+      );
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  /// The version increment [repoName] will publish with, or null when the
+  /// config supplies none — the top-level default counts.
+  ///
+  /// Same precedence `PublishConfig.forRepo` applies — the per-repo override
+  /// first, the top-level default second — but without its »missing field«
+  /// exception: a missing increment is an answer here, not an error.
+  String? _incrementFor(gg.PublishConfig? config, String repoName) =>
+      config?.repos[repoName]?.versionIncrement ?? config?.versionIncrement;
+
+  /// Throws when a repo needs an answer but nobody can be asked.
+  void _throwWhenCannotAsk(String repoName) {
+    if (_hasTerminal()) {
+      return;
+    }
+    throw Exception(
+      cError(
+        '$repoName needs a $_action, but no version increment / merge message '
+        'is configured and stdin is no terminal.\n'
+        'Provide one of:\n'
+        '  - ${cCmd('gg do configure-publish')} (interactively, then re-run)\n'
+        '  - ${cCmd('$_command --config <file>')}',
+      ),
+    );
+  }
+
+  /// The version later repos will resolve [repoName] against.
+  ///
+  /// A repo that does not publish keeps its manifest version — that is exact.
+  /// A publishing one gets `baseline` plus the chosen increment, the same
+  /// arithmetic gg_one performs. Everything undecidable answers null, which
+  /// makes dependents publish instead of trusting a guess.
+  Future<String?> _predictedVersion({
+    required Directory repoDir,
+    required String repoName,
+    required bool doesPublish,
+    required bool isMergeOnly,
+    required String? increment,
+    required String? channel,
+    required Version? baseline,
+  }) async {
+    // A merge releases nothing, so no version changes.
+    if (!doesPublish || isMergeOnly) {
+      try {
+        return await _getVersion.get(directory: repoDir);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // A release candidate carries a suffix this arithmetic does not model.
+    if (channel != null && channel != 'stable') {
+      return null;
+    }
+
+    try {
+      final base =
+          baseline ??
+          await _publishedVersion.get(directory: repoDir, ggLog: (_) {});
+      return switch (increment) {
+        'major' => base.nextMajor.toString(),
+        'minor' => base.nextMinor.toString(),
+        'patch' => base.nextPatch.toString(),
+        _ => null,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Merges the freshly collected [answers] into [base], keeping the status
+  /// and channel markers a resume depends on.
+  gg.PublishConfig _mergedConfig({
+    required gg.PublishConfig? base,
+    required Map<String, gg.RepoOverride> answers,
+  }) {
+    final repos = <String, gg.RepoOverride>{...?base?.repos};
+    for (final entry in answers.entries) {
+      // An empty stand-in for a repo the configuration did not mention keeps
+      // the merge one expression per field instead of a null check per field.
+      final existing = repos[entry.key] ?? gg.RepoOverride();
+      repos[entry.key] = gg.RepoOverride(
+        versionIncrement:
+            entry.value.versionIncrement ?? existing.versionIncrement,
+        mergeMessage: entry.value.mergeMessage ?? existing.mergeMessage,
+        // Channel and status belong to the run, not to the answer — a resume
+        // depends on them, so they survive untouched.
+        channel: existing.channel,
+        status: existing.status,
+      );
+    }
+    // The top-level defaults are what most configurations actually carry —
+    // dropping them here would make every later `forRepo` fail.
+    return gg.PublishConfig(
+      versionIncrement: base?.versionIncrement,
+      mergeMessage: base?.mergeMessage,
+      channel: base?.channel,
+      deleteTicket: base?.deleteTicket,
+      deleteFeatureBranch: base?.deleteFeatureBranch,
+      pr: base?.pr,
+      branch: base?.branch,
+      doneSteps: base?.doneSteps,
+      repos: repos,
+    );
   }
 
   /// Asks up front what should happen to the ticket once the publish is
@@ -759,14 +1011,13 @@ class DoPublishCommand extends DirCommand<void> {
   /// [config] is the resolved configuration; [sourcePath] is the file it came
   /// from (the user's `--config`/legacy file, or the runtime copy) — used so a
   /// missing-field error points at the file the user actually authored.
-  Future<({gg.PublishConfig config, String sourcePath})> _resolvePublishConfig({
+  Future<({gg.PublishConfig? config, String sourcePath})>
+  _loadExistingPublishConfig({
     required Directory ticketDir,
     required File runtimeFile,
     required String? configArg,
     required bool continueRun,
     required bool restart,
-    required String? messageArg,
-    required GgLog ggLog,
   }) async {
     if (continueRun && (configArg != null || restart)) {
       throw Exception(cError(gg.continueConflictMessage));
@@ -840,13 +1091,11 @@ class DoPublishCommand extends DirCommand<void> {
       return (config: config, sourcePath: legacyFile.path);
     }
 
-    final config = await _doConfigurePublishCommand.configure(
-      directory: ticketDir,
-      ggLog: ggLog,
-      defaultMergeMessage: messageArg,
-      mergeOnly: mergeOnly,
-    );
-    return (config: config, sourcePath: runtimeFile.path);
+    // Only the interactive path is left. It runs later — after the ticket
+    // wide checks decided the run may proceed at all, and after the planning
+    // pass decided which repos actually need a release, so nobody answers a
+    // version question for a repo that is then skipped.
+    return (config: null, sourcePath: runtimeFile.path);
   }
 
   /// Throws when the *current* ticket state was not reviewed.
