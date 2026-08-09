@@ -12,7 +12,6 @@ import 'package:gg_lang/gg_lang.dart' as gg_lang;
 // ignore: lines_longer_than_80_chars
 import 'package:gg_local_package_dependencies/gg_local_package_dependencies.dart';
 import 'package:gg_localize_refs/gg_localize_refs.dart';
-import 'package:gg_git/gg_git.dart';
 import 'package:gg_log/gg_log.dart';
 import 'package:gg_publish/gg_publish.dart' show PublishedVersion;
 import 'package:gg_one/gg_one.dart' as gg;
@@ -1239,7 +1238,7 @@ class DoPublishCommand extends DirCommand<void> {
     await _systemCommit.commit(
       directory: repoDir,
       ggLog: taskLog,
-      message: '${ggCommitPrefix}changed references to pub.dev',
+      message: '${gg.ggCommitPrefix}changed references to pub.dev',
       userCommitMessage: gg.readTicketDescriptionForRepo,
     );
 
@@ -1380,7 +1379,7 @@ class DoPublishCommand extends DirCommand<void> {
           await _runGit(<String>[
             'merge',
             '-m',
-            '$ggMergeBackPrefix$mainBranch back into $branch',
+            '${gg.ggMergeBackPrefix}$mainBranch back into $branch',
             mainBranch,
           ], repoDir: repoDir);
         } catch (e) {
@@ -1414,7 +1413,7 @@ class DoPublishCommand extends DirCommand<void> {
       await _systemCommit.commit(
         directory: repoDir,
         ggLog: taskLog,
-        message: '${ggCommitPrefix}restored local workspace references',
+        message: '${gg.ggCommitPrefix}restored local workspace references',
         userCommitMessage: gg.readTicketDescriptionForRepo,
       );
 
