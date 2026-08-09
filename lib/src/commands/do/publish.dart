@@ -4,6 +4,7 @@
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
 
+import 'package:gg_git/gg_git.dart';
 import 'dart:io';
 
 import 'package:gg_args/gg_args.dart';
@@ -20,7 +21,6 @@ import 'package:path/path.dart' as path;
 import 'package:pub_semver/pub_semver.dart';
 
 import 'package:gg_multi_do_publish/src/backend/ensure_in_registry.dart';
-import 'package:gg_multi_core/gg_multi_core.dart' as git_snapshot;
 import 'package:gg_multi_do_publish/src/backend/npm_registry_checker.dart';
 import 'package:gg_multi_do_publish/src/backend/pub_dev_checker.dart';
 import 'package:gg_multi_core/gg_multi_core.dart';
@@ -1516,13 +1516,13 @@ class DoPublishCommand extends DirCommand<void> {
   }
 
   /// Runs git with [args] in [repoDir] and returns the trimmed stdout.
-  /// Delegates to the shared [git_snapshot.runGit] so `do push` and
+  /// Delegates to the shared [runGit] so `do push` and
   /// `do publish` use one git runner. See there for [allowFailure].
   Future<String> _runGit(
     List<String> args, {
     required Directory repoDir,
     bool allowFailure = false,
-  }) => git_snapshot.runGit(
+  }) => runGit(
     _processRunner,
     args,
     repoDir: repoDir,
@@ -1560,15 +1560,11 @@ class DoPublishCommand extends DirCommand<void> {
 
   /// Captures the uncommitted changes of [repoDir] in a dangling stash commit,
   /// leaving the working tree unchanged. Delegates to the shared
-  /// [git_snapshot.captureUncommitted]; returns the stash hash or null.
+  /// [captureUncommitted]; returns the stash hash or null.
   Future<String?> _captureUncommitted({
     required Directory repoDir,
     required String status,
-  }) => git_snapshot.captureUncommitted(
-    _processRunner,
-    repoDir: repoDir,
-    status: status,
-  );
+  }) => captureUncommitted(_processRunner, repoDir: repoDir, status: status);
 
   /// Whether [status] (a `git status --porcelain` output) shows an uncommitted
   /// change to the version-bearing manifest. Used to tell a *committed* version

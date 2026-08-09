@@ -7,6 +7,7 @@
 - Improve commit behavior
 - Move gg commit conventions from gg_git to gg_one_core
 - Answer gg did publish from git tags instead of a marker
+- Move the git and process plumbing to gg_git
 
 ## 2.2.0 - 2026-08-09
 

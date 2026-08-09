@@ -202,7 +202,7 @@ packages:
     source: hosted
     version: "2.0.1"
   gg_git:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       path: "../gg_git"
       relative: true
