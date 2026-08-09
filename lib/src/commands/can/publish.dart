@@ -228,7 +228,7 @@ class CanPublishCommand extends DirCommand<void> {
       pana: pana ?? _panaFromArgs,
     );
     if (failure != null) {
-      throw Exception(cDetail('Cannot publish.'));
+      throw Exception(_failureMessage('Cannot publish.', [failure]));
     }
   }
 
@@ -388,10 +388,11 @@ class CanPublishCommand extends DirCommand<void> {
       );
       return null;
     } catch (e) {
-      // The reason is printed once, right under the repo it belongs to.
-      // What travels on is only the name.
+      // The reason is printed once, right under the repo it belongs to —
+      // but that log is silent without --verbose, so it travels on with the
+      // repo name as well.
       ggLog([cDetail('✗ Cannot publish'), cError(rmControls('$e'))].join('\n'));
-      return repoName;
+      return '$repoName: ${_reasonOf(e)}';
     }
   }
 
@@ -415,11 +416,40 @@ class CanPublishCommand extends DirCommand<void> {
     }
     if (failedRepos.isNotEmpty) {
       ggLog(cAction('\nPlease fix the issues above.\n'));
-      throw Exception(cDetail('Cannot publish.'));
+      throw Exception(_failureMessage('Cannot publish.', failedRepos));
     }
   }
 
+  // ...........................................................................
+  /// The summary line plus one indented line per failing repo, all in
+  /// [cDetail].
+  ///
+  /// The per-repo detail is logged to the task log, which is silent without
+  /// `--verbose` — so the reason has to travel in the exception too, or the
+  /// user is left with a bare »Cannot merge.« and no way to act on it.
+  static String _failureMessage(String summary, List<String> failures) =>
+      cDetail([summary, ...failures.map((f) => '  - $f')].join('\n'));
+
+  // ...........................................................................
+  /// The human-readable part of [error] — an `Exception`'s message, with the
+  /// color codes and the »Exception: « prefix removed.
+  static String _reasonOf(Object error) {
+    var reason = rmControls('$error').trim();
+    const prefix = 'Exception: ';
+    if (reason.startsWith(prefix)) {
+      reason = reason.substring(prefix.length).trim();
+    }
+    return reason;
+  }
+
   /// Checks the npm authentication of every repository in the ticket.
+  ///
+  /// gg_one skips every repository that does not publish to npm, so only the
+  /// ones that really need the credentials can fail here. Which those are has
+  /// to be in the exception: a ticket mixes pub.dev, npm and registry-less
+  /// repos, and a bare »Not logged in to npm.« reads like the check fired for
+  /// a package that publishes nowhere near npm — the per-repo reason below
+  /// goes to the task log, which is silent without `--verbose`.
   Future<void> _checkNpmLoggedIn({
     required List<Node> subs,
     required GgLog ggLog,
@@ -438,12 +468,12 @@ class CanPublishCommand extends DirCommand<void> {
             cError(rmControls('$e')),
           ].join('\n'),
         );
-        failedRepos.add(repoName);
+        failedRepos.add('$repoName: ${_reasonOf(e)}');
       }
     }
     if (failedRepos.isNotEmpty) {
       ggLog(cAction('\nPlease fix the issues above.\n'));
-      throw Exception(cDetail('Not logged in to npm.'));
+      throw Exception(_failureMessage('Not logged in to npm.', failedRepos));
     }
   }
 
@@ -452,7 +482,7 @@ class CanPublishCommand extends DirCommand<void> {
     required List<Node> subs,
     required GgLog ggLog,
   }) async {
-    final failedMergeRepos = <String>[];
+    final failures = <String>[];
     for (final repo in subs) {
       final repoDir = repo.directory;
       final repoName = path.basename(repoDir.path);
@@ -461,12 +491,12 @@ class CanPublishCommand extends DirCommand<void> {
         await _ggCanMerge.exec(directory: repoDir, ggLog: ggLog);
       } catch (e) {
         ggLog([cDetail('✗ Cannot merge'), cError(rmControls('$e'))].join('\n'));
-        failedMergeRepos.add(repoName);
+        failures.add('$repoName: ${_reasonOf(e)}');
       }
     }
-    if (failedMergeRepos.isNotEmpty) {
+    if (failures.isNotEmpty) {
       ggLog(cAction('\nPlease fix the issues above.\n'));
-      throw Exception(cDetail('Cannot merge.'));
+      throw Exception(_failureMessage('Cannot merge.', failures));
     }
   }
 
