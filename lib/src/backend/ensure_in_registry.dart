@@ -63,14 +63,11 @@ class EnsureInRegistry {
     required Directory directory,
     required GgLog ggLog,
   }) async {
-    final inRegistry = await _isInRegistry.inRegistry(
-      directory: directory,
-      ggLog: ggLog,
-    );
+    final missing = await _isInRegistry.missingTargets(directory: directory);
 
     // Repos without a public registry (null) need no first version; repos
-    // with at least one published version (true) neither.
-    if (inRegistry != false) {
+    // whose registries all carry a version (empty) neither.
+    if (missing == null || missing.isEmpty) {
       return;
     }
 
@@ -83,19 +80,33 @@ class EnsureInRegistry {
       hasTerminal: _hasTerminal,
     );
 
-    final type = checkProjectType(directory);
-    final registry = type.isDartFamily ? 'pub.dev' : 'npm';
-    final name = await _packageName(directory);
+    // Each registry is asked about separately: a hybrid that already lives on
+    // npm but was never released to pub.dev needs exactly one prompt, naming
+    // the pub.dev package and the »dart pub publish« command.
+    for (final target in missing.ordered) {
+      await _promptFor(directory: directory, ggLog: ggLog, target: target);
+    }
+  }
+
+  // ...........................................................................
+  /// Asks the user to publish the first version to [target] manually and
+  /// returns once it became visible there.
+  Future<void> _promptFor({
+    required Directory directory,
+    required GgLog ggLog,
+    required PublishTarget target,
+  }) async {
+    final name = await _packageName(directory, target);
 
     ggLog(
       cWarn(
-        '»$name« has no version published on $registry yet.\n'
+        '»$name« has no version published on ${target.id} yet.\n'
         'Please publish the first version manually directly out of the '
         'current working folder:',
       ),
     );
     ggLog(cCmd('  cd ${directory.absolute.path}'));
-    ggLog(cCmd('  ${await _publishCommand(directory, type)}'));
+    ggLog(cCmd('  ${await _publishCommand(directory, target)}'));
 
     while (true) {
       ggLog(
@@ -104,22 +115,21 @@ class EnsureInRegistry {
       final answer = (_readLineFromStdIn() ?? '').trim().toLowerCase();
       if (answer == 'q') {
         throw Exception(
-          cError('Publishing aborted: »$name« has no version on $registry.'),
+          cError('Publishing aborted: »$name« has no version on ${target.id}.'),
         );
       }
 
-      final inRegistryNow = await _isInRegistry.inRegistry(
+      final missingNow = await _isInRegistry.missingTargets(
         directory: directory,
-        ggLog: ggLog,
       );
-      if (inRegistryNow == true) {
-        ggLog(cDetail('»$name« is now available on $registry. Continuing.'));
+      if (missingNow == null || !missingNow.contains(target)) {
+        ggLog(cDetail('»$name« is now available on ${target.id}. Continuing.'));
         return;
       }
 
       ggLog(
         cWarn(
-          '»$name« is not yet visible on $registry. A fresh publish can '
+          '»$name« is not yet visible on ${target.id}. A fresh publish can '
           'take a few minutes to appear. Please try again.',
         ),
       );
@@ -132,31 +142,32 @@ class EnsureInRegistry {
 
   // ...........................................................................
   /// The shell command the user executes to publish the repo in [directory]
-  /// manually. Dart/Flutter repos publish with the catalog's publish
-  /// command, npm repos with pnpm.
-  Future<String> _publishCommand(Directory directory, ProjectType type) async {
-    if (type.isDartFamily) {
-      final catalog = _catalog ?? await LanguageCatalog.load();
-      return catalog.spec(type).command('publish').label;
+  /// to [target] manually. pub.dev uses the catalog's publish command, npm
+  /// uses pnpm.
+  Future<String> _publishCommand(
+    Directory directory,
+    PublishTarget target,
+  ) async {
+    final catalog = _catalog ?? await LanguageCatalog.load();
+    if (target == PublishTarget.pubDev) {
+      return target.specIn(directory, catalog).command('publish').label;
     }
 
     // A scoped package is private by default on npm — the first publish is
     // rejected without »--access public«. »--no-git-checks« is needed
     // because the repo sits on its ticket feature branch.
-    final name = await _packageName(directory);
+    final name = await _packageName(directory, target);
     final access = name.startsWith('@') ? ' --access public' : '';
     return 'pnpm publish --no-git-checks$access';
   }
 
   // ...........................................................................
-  /// The name of the package in [directory], read from its manifest.
-  Future<String> _packageName(Directory directory) async {
+  /// The name the package of [directory] carries on [target] — `foo` on
+  /// pub.dev, the possibly scoped `@org/foo` on npm. Naming the wrong one in a
+  /// prompt is how a user ends up pasting the wrong command.
+  Future<String> _packageName(Directory directory, PublishTarget target) async {
     final catalog = _catalog ?? await LanguageCatalog.load();
-    return await Manifest.detect(
-      directory,
-      catalog,
-      treatBridgeAsTypeScript: true,
-    ).readName();
+    return target.manifestIn(directory, catalog).readName();
   }
 }
 

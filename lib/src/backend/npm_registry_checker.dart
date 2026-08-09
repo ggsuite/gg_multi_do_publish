@@ -4,6 +4,8 @@
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
 
+import 'dart:io';
+
 import 'package:gg_lang/gg_lang.dart';
 
 import 'package:gg_multi_do_publish/src/backend/pub_dev_checker.dart'
@@ -96,10 +98,21 @@ class NpmRegistryChecker {
       spec: spec,
       workingDirectory: workingDirectory,
     );
+
+    // The status page comes from the merged .npmrc: a scoped package on a
+    // private feed is not on npmjs.com, and printing that link sends the user
+    // to a 404. The catalog template is the fallback when nothing resolves.
+    final statusUrl = workingDirectory == null
+        ? spec.registry?.statusUrl
+        : await NpmRegistryResolver().statusUrlTemplateOf(
+            directory: Directory(workingDirectory),
+            fallback: spec.registry?.statusUrl,
+          );
+
     return RegistryWaiter(
       registry: registry,
       registryName: 'npm',
-      statusUrl: spec.registry?.statusUrl,
+      statusUrl: statusUrl,
       log: log,
       delay: _delay,
       pollInterval: pollInterval,
