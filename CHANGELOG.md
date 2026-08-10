@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.1 - 2026-08-10
+
+### Fixed
+
+- Fix »gg do rm« issues
+
 ## 2.4.0 - 2026-08-10
 
 ### Changed
