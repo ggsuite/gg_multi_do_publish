@@ -24,6 +24,8 @@ class MockSortedProcessingList extends Mock implements SortedProcessingList {}
 
 class FakeDirectory extends Fake implements Directory {}
 
+class FakeNode extends Fake implements Node {}
+
 /// Fallback for the `ggLog` argument matcher of [MockPublishedVersion].
 void _fallbackGgLog(String msg) {}
 
@@ -56,6 +58,8 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(FakeDirectory());
+    registerFallbackValue(FakeNode());
+    registerFallbackValue(<String, String>{});
     registerFallbackValue(_fallbackGgLog);
   });
 
@@ -90,6 +94,7 @@ void main() {
     bool versionThrows = false,
     _StubAdapter? adapter,
     EditMessage? editMessage,
+    PublishSkipCheck? publishSkipCheck,
   }) {
     final sortedList = MockSortedProcessingList();
     when(
@@ -123,6 +128,7 @@ void main() {
       versionSelector: gg.VersionSelector(
         adapter: adapter ?? _StubAdapter(increments),
       ),
+      publishSkipCheck: publishSkipCheck,
       editMessage:
           editMessage ??
           (initial) async {
@@ -371,6 +377,39 @@ void main() {
         await command.configure(directory: ticketDir, ggLog: ggLog);
         expect(capturedInitials, ['']);
       });
+    });
+
+    test('asks nothing for a repo that needs no release', () async {
+      // B only sits between two changed packages: it is not released, so an
+      // increment and a merge message for it would answer a question nobody
+      // asks.
+      final skipCheck = MockPublishSkipCheck();
+      when(
+        () => skipCheck.get(
+          repo: any(named: 'repo'),
+          refVersions: any(named: 'refVersions'),
+        ),
+      ).thenAnswer((invocation) async {
+        final repo = invocation.namedArguments[#repo] as Node;
+        return repo.name == 'B'
+            ? const PublishSkipDecision(skip: true, reason: 'Nothing changed.')
+            : const PublishSkipDecision(skip: false, reason: 'changed');
+      });
+
+      final command = makeCommand(
+        repos: [node('A'), node('B')],
+        publishSkipCheck: skipCheck,
+      );
+
+      final config = await command.configure(
+        directory: ticketDir,
+        ggLog: ggLog,
+        defaultMergeMessage: 'The change',
+      );
+
+      expect(config.repos.keys, ['A']);
+      expect(capturedInitials, ['The change']);
+      expect(messages.join('\n'), contains('Not published. Nothing changed.'));
     });
 
     test('refuses to clobber the progress of an unfinished publish', () async {

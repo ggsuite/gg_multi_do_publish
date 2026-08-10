@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.0 - 2026-08-10
+
+### Changed
+
+- Don't review skipped packages
+- Merge origin/main
+
 ## 2.3.1 - 2026-08-10
 
 ### Removed
