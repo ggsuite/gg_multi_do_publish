@@ -309,7 +309,7 @@ packages:
     source: path
     version: "1.0.1"
   gg_process:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       path: "../gg_process"
       relative: true
