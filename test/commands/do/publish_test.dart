@@ -21,8 +21,6 @@ import 'package:gg_multi_do_publish/src/backend/pub_dev_checker.dart';
 import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
-import 'package:gg_multi_do_publish/src/commands/do/configure_publish.dart'
-    show DoConfigurePublishCommand, RepoPublishPlan;
 import 'package:gg_multi_do_publish/src/commands/do/publish.dart';
 import 'package:gg_one/gg_one.dart' as gg;
 import 'package:gg_publish/gg_publish.dart' show PublishedVersion;
@@ -60,8 +58,44 @@ class MockDoPushCommand extends Mock implements DoPushCommand {}
 /// Mock for DoConfigurePublishCommand
 class MockPublishedVersion extends Mock implements PublishedVersion {}
 
-class MockConfigurePublishCommand extends Mock
-    implements DoConfigurePublishCommand {}
+/// The per-repo publish questions, as far as these tests care about them.
+abstract class RepoConfigurator {
+  /// Asks the version increment and merge message of one repository.
+  Future<RepoPublishPlan> configureRepo({
+    required Directory repoDir,
+    required String seedMessage,
+    bool mergeOnly,
+  });
+}
+
+class MockConfigurePublishCommand extends Mock implements RepoConfigurator {}
+
+/// A real [PublishPlanner] — skip decisions, prediction, config merging — that
+/// routes only the interactive questions to a mock.
+class StubPlanner extends PublishPlanner {
+  /// Constructor
+  StubPlanner(
+    this._configurator, {
+    required super.ggLog,
+    super.publishSkipCheck,
+    super.publishedVersion,
+    super.readManifestVersion,
+    super.hasTerminal,
+  });
+
+  final RepoConfigurator _configurator;
+
+  @override
+  Future<RepoPublishPlan> configureRepo({
+    required Directory repoDir,
+    required String seedMessage,
+    bool mergeOnly = false,
+  }) => _configurator.configureRepo(
+    repoDir: repoDir,
+    seedMessage: seedMessage,
+    mergeOnly: mergeOnly,
+  );
+}
 
 /// Mock for UnlocalizeRefs
 class MockUnlocalizeRefs extends Mock implements ChangeRefsToPubDev {}
@@ -188,14 +222,7 @@ void main() {
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockConfigure = MockConfigurePublishCommand();
 
-      // The empty ticket has no config file, so `do publish` configures it;
-      // the mock returns an empty config without any interactive prompt.
-      when(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-        ),
-      ).thenAnswer((_) async => gg.PublishConfig());
+      // The empty ticket has no repo, so nothing is ever asked.
 
       when(
         () => mockDidReviewCommand.exec(
@@ -359,10 +386,9 @@ void main() {
       // version increment / merge message questions are never asked for a
       // state the publish refuses.
       verifyNever(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-          defaultMergeMessage: any(named: 'defaultMergeMessage'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
           mergeOnly: any(named: 'mergeOnly'),
         ),
       );
@@ -5070,9 +5096,10 @@ void main() {
         ),
       ).called(1);
       verifyNever(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       );
     });
@@ -5696,7 +5723,7 @@ void main() {
       gg.InteractAdapter? interactAdapter,
       gg.HasTerminal? hasTerminal,
       TicketState? ticketState,
-      DoConfigurePublishCommand? doConfigurePublishCommand,
+      RepoConfigurator? doConfigurePublishCommand,
       PublishedVersion? publishedVersion,
     }) => CommandRunner<void>('test', 'do publish ticket')
       ..addCommand(
@@ -7820,7 +7847,8 @@ DoPublishCommand makePublishCommand({
   NpmRegistryChecker? npmChecker,
   PublishSkipCheck? publishSkipCheck,
   PublishedVersion? publishedVersion,
-  DoConfigurePublishCommand? doConfigurePublishCommand,
+  RepoConfigurator? doConfigurePublishCommand,
+  ReadManifestVersion? readManifestVersion,
   gg.EnsurePublishConfigIgnored? ensureIgnored,
   EnsureInRegistry? ensureInRegistry,
   TicketState? ticketState,
@@ -7891,7 +7919,16 @@ DoPublishCommand makePublishCommand({
     npmChecker: npmChecker,
     publishSkipCheck: publishSkipCheck,
     publishedVersion: publishedVersion,
-    doConfigurePublishCommand: doConfigurePublishCommand,
+    publishPlanner: doConfigurePublishCommand == null
+        ? null
+        : StubPlanner(
+            doConfigurePublishCommand,
+            ggLog: ggLog,
+            publishSkipCheck: publishSkipCheck,
+            publishedVersion: publishedVersion,
+            readManifestVersion: readManifestVersion,
+            hasTerminal: hasTerminal,
+          ),
     ensureIgnored: ensureIgnored,
     ensureInRegistry: ensureInRegistry,
     ticketState: ticketState,
