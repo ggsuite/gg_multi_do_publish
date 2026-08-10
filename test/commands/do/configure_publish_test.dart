@@ -6,6 +6,7 @@
 
 import 'dart:io';
 
+import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:args/command_runner.dart';
 // ignore: lines_longer_than_80_chars
 import 'package:gg_local_package_dependencies/gg_local_package_dependencies.dart';
@@ -18,7 +19,6 @@ import 'package:path/path.dart' as path;
 import 'package:pub_semver/pub_semver.dart';
 import 'package:pubspec_parse/pubspec_parse.dart';
 import 'package:test/test.dart';
-import 'package:gg_multi_core/gg_multi_core.dart';
 
 class MockSortedProcessingList extends Mock implements SortedProcessingList {}
 
@@ -185,7 +185,7 @@ void main() {
       'writes per-repo increment + message using the ticket description',
       () async {
         File(
-          path.join(ticketDir.path, '.ticket'),
+          path.join(ticketDir.path, ticketJsonFileName),
         ).writeAsStringSync('{"description": "Ticket desc"}');
         final command = makeCommand(
           repos: [node('A'), node('B')],
@@ -265,7 +265,8 @@ void main() {
           fallbackDir: ticketDir.path,
         );
         expect(cfg.repos['A']!.versionIncrement, 'major');
-        // No .ticket and an empty edit → generic non-empty fallback message.
+        // No ticket.json and an empty edit → generic non-empty fallback
+        // message.
         expect(cfg.repos['A']!.mergeMessage, 'Publish A');
         // The delete-ticket question is gone: `do publish` always trashes.
         expect(cfg.deleteTicket, isNull);
@@ -276,7 +277,7 @@ void main() {
       'falls back to the ticket description when the edit is empty',
       () async {
         File(
-          path.join(ticketDir.path, '.ticket'),
+          path.join(ticketDir.path, ticketJsonFileName),
         ).writeAsStringSync('{"description": "Ticket desc"}');
         final command = makeCommand(
           repos: [node('A')],
@@ -341,24 +342,27 @@ void main() {
       });
     });
 
-    group('merge-message default from .ticket', () {
-      test('empty default when no .ticket file exists', () async {
+    group('merge-message default from ticket.json', () {
+      test('empty default when no ticket.json file exists', () async {
         final command = makeCommand(repos: [node('A')]);
         await command.configure(directory: ticketDir, ggLog: ggLog);
         expect(capturedInitials, ['']);
       });
 
-      test('empty default when .ticket is not a JSON object', () async {
-        File(path.join(ticketDir.path, '.ticket')).writeAsStringSync('[]');
-        final command = makeCommand(repos: [node('A')]);
-        await command.configure(directory: ticketDir, ggLog: ggLog);
-        expect(capturedInitials, ['']);
-      });
-
-      test('empty default when .ticket is malformed JSON (no crash)', () async {
-        // A hand-edited / truncated .ticket must not crash configure-publish.
+      test('empty default when ticket.json is not a JSON object', () async {
         File(
-          path.join(ticketDir.path, '.ticket'),
+          path.join(ticketDir.path, ticketJsonFileName),
+        ).writeAsStringSync('[]');
+        final command = makeCommand(repos: [node('A')]);
+        await command.configure(directory: ticketDir, ggLog: ggLog);
+        expect(capturedInitials, ['']);
+      });
+
+      test('empty default when ticket.json is malformed JSON', () async {
+        // A hand-edited / truncated ticket.json must not crash
+        // configure-publish.
+        File(
+          path.join(ticketDir.path, ticketJsonFileName),
         ).writeAsStringSync('{"description":');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(directory: ticketDir, ggLog: ggLog);
@@ -367,7 +371,7 @@ void main() {
 
       test('empty default when the description is blank', () async {
         File(
-          path.join(ticketDir.path, '.ticket'),
+          path.join(ticketDir.path, ticketJsonFileName),
         ).writeAsStringSync('{"description": "   "}');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(directory: ticketDir, ggLog: ggLog);
@@ -462,7 +466,7 @@ void main() {
           ggLog: ggLog,
           defaultMergeMessage: 'CLI msg',
         );
-        // No .ticket; -m pre-fills the prompt and becomes the message.
+        // No ticket.json; -m pre-fills the prompt and becomes the message.
         expect(capturedInitials, ['CLI msg']);
 
         final file = DoConfigurePublishCommand.configFileFor(ticketDir);
@@ -475,7 +479,7 @@ void main() {
 
       test('-m takes precedence over the ticket description', () async {
         File(
-          path.join(ticketDir.path, '.ticket'),
+          path.join(ticketDir.path, ticketJsonFileName),
         ).writeAsStringSync('{"description": "Ticket desc"}');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(
@@ -489,7 +493,7 @@ void main() {
 
       test('a blank -m falls back to the ticket description', () async {
         File(
-          path.join(ticketDir.path, '.ticket'),
+          path.join(ticketDir.path, ticketJsonFileName),
         ).writeAsStringSync('{"description": "Ticket desc"}');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(
