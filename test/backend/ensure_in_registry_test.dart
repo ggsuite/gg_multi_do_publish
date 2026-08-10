@@ -7,6 +7,7 @@
 import 'dart:io';
 
 import 'package:gg_multi_do_publish/src/backend/ensure_in_registry.dart';
+import 'package:gg_lang/gg_lang.dart';
 import 'package:gg_publish/gg_publish.dart';
 import 'package:gg_status_printer/gg_status_printer.dart';
 import 'package:mocktail/mocktail.dart';
@@ -36,17 +37,21 @@ void main() {
   // ...........................................................................
   /// Makes the registry report the given states, one per call. The last
   /// state is repeated for further calls.
+  ///
+  /// `true` ⇒ every registry has the package, `false` ⇒ none of them has,
+  /// `null` ⇒ the package has no public registry at all.
   void mockInRegistry(List<bool?> results) {
     var call = 0;
     when(
-      () => isInRegistry.inRegistry(
-        directory: any(named: 'directory'),
-        ggLog: any(named: 'ggLog'),
-      ),
-    ).thenAnswer((_) async {
+      () => isInRegistry.missingTargets(directory: any(named: 'directory')),
+    ).thenAnswer((invocation) async {
       final result = results[call < results.length ? call : results.length - 1];
       call++;
-      return result;
+      if (result == null) return null;
+      if (result) return <PublishTarget>{};
+      return await publishTargetsOf(
+        invocation.namedArguments[#directory] as Directory,
+      );
     });
   }
 

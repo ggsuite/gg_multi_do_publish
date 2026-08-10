@@ -5,6 +5,7 @@
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
 
+import 'package:gg_git/gg_git.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -20,10 +21,9 @@ import 'package:gg_multi_do_publish/src/backend/pub_dev_checker.dart';
 import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
-import 'package:gg_multi_do_publish/src/commands/do/configure_publish.dart'
-    show DoConfigurePublishCommand;
 import 'package:gg_multi_do_publish/src/commands/do/publish.dart';
 import 'package:gg_one/gg_one.dart' as gg;
+import 'package:gg_publish/gg_publish.dart' show PublishedVersion;
 import 'package:gg_status_printer/gg_status_printer.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as path;
@@ -35,7 +35,7 @@ import 'package:test/test.dart';
 class MockGgDoPublish extends Mock implements gg.DoPublish {}
 
 /// Mock for gg DoCommit
-class MockGgDoCommit extends Mock implements gg.DoCommit {}
+class MockGgSystemCommit extends Mock implements gg.GgSystemCommit {}
 
 /// Mock for gg DoUpgradeDeps
 class MockGgDoUpgradeDeps extends Mock implements gg.DoUpgradeDeps {}
@@ -56,17 +56,52 @@ class MockCanPublishCommand extends Mock implements CanPublishCommand {}
 class MockDoPushCommand extends Mock implements DoPushCommand {}
 
 /// Mock for DoConfigurePublishCommand
-class MockConfigurePublishCommand extends Mock
-    implements DoConfigurePublishCommand {}
+class MockPublishedVersion extends Mock implements PublishedVersion {}
+
+/// The per-repo publish questions, as far as these tests care about them.
+abstract class RepoConfigurator {
+  /// Asks the version increment and merge message of one repository.
+  Future<RepoPublishPlan> configureRepo({
+    required Directory repoDir,
+    required String seedMessage,
+    bool mergeOnly,
+  });
+}
+
+class MockConfigurePublishCommand extends Mock implements RepoConfigurator {}
+
+/// A real [PublishPlanner] — skip decisions, prediction, config merging — that
+/// routes only the interactive questions to a mock.
+class StubPlanner extends PublishPlanner {
+  /// Constructor
+  StubPlanner(
+    this._configurator, {
+    required super.ggLog,
+    super.publishSkipCheck,
+    super.publishedVersion,
+    super.readManifestVersion,
+    super.hasTerminal,
+  });
+
+  final RepoConfigurator _configurator;
+
+  @override
+  Future<RepoPublishPlan> configureRepo({
+    required Directory repoDir,
+    required String seedMessage,
+    bool mergeOnly = false,
+  }) => _configurator.configureRepo(
+    repoDir: repoDir,
+    seedMessage: seedMessage,
+    mergeOnly: mergeOnly,
+  );
+}
 
 /// Mock for UnlocalizeRefs
 class MockUnlocalizeRefs extends Mock implements ChangeRefsToPubDev {}
 
 /// Mock for ChangeRefsToLocal (the post-publish re-localization)
 class MockLocalizeRefs extends Mock implements ChangeRefsToLocal {}
-
-/// Mock for gg DidPublish
-class MockGgDidPublish extends Mock implements gg.DidPublish {}
 
 /// Mock for TicketState
 class MockTicketState extends Mock implements TicketState {}
@@ -187,14 +222,7 @@ void main() {
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockConfigure = MockConfigurePublishCommand();
 
-      // The empty ticket has no config file, so `do publish` configures it;
-      // the mock returns an empty config without any interactive prompt.
-      when(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-        ),
-      ).thenAnswer((_) async => gg.PublishConfig());
+      // The empty ticket has no repo, so nothing is ever asked.
 
       when(
         () => mockDidReviewCommand.exec(
@@ -263,6 +291,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       ).thenThrow(Exception('stop after can publish'));
@@ -298,6 +327,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       ]);
@@ -356,10 +386,9 @@ void main() {
       // version increment / merge message questions are never asked for a
       // state the publish refuses.
       verifyNever(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-          defaultMergeMessage: any(named: 'defaultMergeMessage'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
           mergeOnly: any(named: 'mergeOnly'),
         ),
       );
@@ -368,6 +397,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       );
@@ -391,6 +421,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       ).thenThrow(
@@ -434,11 +465,10 @@ void main() {
         path.join(ticketDir.path, 'TICKPB.code-workspace'),
       ).writeAsStringSync('{"folders": []}');
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockLocalizeRefs = MockLocalizeRefs();
-      final mockGgDidPublish = MockGgDidPublish();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
       _stubPubUpgrade(mockProcessRunner);
@@ -455,10 +485,6 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
         ),
-      ).thenAnswer((_) async {});
-
-      when(
-        () => mockGgDidPublish.set(directory: any(named: 'directory')),
       ).thenAnswer((_) async {});
 
       when(
@@ -507,14 +533,24 @@ void main() {
       ).thenAnswer((_) async {});
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
 
       when(
         () => mockGgDoPush.exec(
@@ -538,6 +574,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -586,11 +624,10 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             localizeRefs: mockLocalizeRefs,
-            ggDidPublish: mockGgDidPublish,
             sortedProcessingList: mockSortedProcessingList,
             processRunner: mockProcessRunner.call,
             canPublishCommand: mockCanPublishCommand,
@@ -654,16 +691,36 @@ void main() {
           ggLog: any(named: 'ggLog'),
         ),
       ).called(2);
+
+      // The unlocalization rewrites the manifests of every repo whose
+      // sibling versions moved, and `gg can publish` — which runs right
+      // after, per repo — answers »is everything committed?« from the
+      // recorded hash. Without recording it here the gate reports a
+      // spurious »Not committed yet« and the release stops mid-run.
       verify(
-        () => mockGgDidPublish.set(directory: any(named: 'directory')),
+        () => mockSystemCommit.commit(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: '#gg: changed references to pub.dev',
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: gg.GgState.doCommitKey,
+        ),
       ).called(2);
       verify(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: '#gg: restored local workspace references',
-          force: true,
-          updateChangeLog: false,
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          // Re-localizing rewrites the manifests, so the recorded
+          // »everything is committed« hash has to be taken anew.
+          stateKey: gg.GgState.doCommitKey,
         ),
       ).called(2);
 
@@ -683,7 +740,7 @@ void main() {
       ).writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -748,14 +805,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -776,6 +843,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -832,7 +901,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -883,7 +952,7 @@ void main() {
 ''');
 
         final mockGgDoPublish = MockGgDoPublish();
-        final mockGgDoCommit = MockGgDoCommit();
+        final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
@@ -928,14 +997,24 @@ void main() {
           ),
         ).thenAnswer((_) async {});
         when(
-          () => mockGgDoCommit.exec(
+          () => mockSystemCommit.commit(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             message: any(named: 'message'),
-            force: any(named: 'force'),
-            updateChangeLog: any(named: 'updateChangeLog'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
         when(
           () => mockGgDoPush.exec(
             directory: any(named: 'directory'),
@@ -957,6 +1036,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
         when(
@@ -990,7 +1071,7 @@ void main() {
               ggLog: ggLog,
               ensureInRegistry: mockEnsureInRegistry,
               ggDoPublish: mockGgDoPublish,
-              ggDoCommit: mockGgDoCommit,
+              systemCommit: mockSystemCommit,
               ggDoPush: mockGgDoPush,
               unlocalizeRefs: mockUnlocalizeRefs,
               sortedProcessingList: mockSortedProcessingList,
@@ -1019,6 +1100,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       },
@@ -1041,7 +1124,7 @@ void main() {
 ''');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -1088,14 +1171,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -1117,6 +1210,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -1150,7 +1245,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -1184,6 +1279,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(1);
 
@@ -1205,6 +1302,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -1221,7 +1320,7 @@ void main() {
 ''');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -1266,14 +1365,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -1295,6 +1404,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -1328,7 +1439,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -1357,13 +1468,15 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
 
     test('does not wait for dependency with publish_to none', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -1425,14 +1538,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -1454,6 +1577,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -1492,7 +1617,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -1542,6 +1667,7 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
         ),
       ).thenThrow(Exception('can publish failed'));
@@ -1611,7 +1737,7 @@ void main() {
       'aborts on gg do publish failure for specific repo and keeps folder',
       () async {
         final mockGgDoPublish = MockGgDoPublish();
-        final mockGgDoCommit = MockGgDoCommit();
+        final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
@@ -1662,14 +1788,24 @@ void main() {
         ).thenAnswer((_) async {});
 
         when(
-          () => mockGgDoCommit.exec(
+          () => mockSystemCommit.commit(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             message: any(named: 'message'),
-            force: any(named: 'force'),
-            updateChangeLog: any(named: 'updateChangeLog'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
 
         when(
           () => mockGgDoPush.exec(
@@ -1693,6 +1829,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((invocation) {
           final repoDir = invocation.namedArguments[#directory] as Directory;
@@ -1743,7 +1881,7 @@ void main() {
               ggLog: ggLog,
               ensureInRegistry: mockEnsureInRegistry,
               ggDoPublish: mockGgDoPublish,
-              ggDoCommit: mockGgDoCommit,
+              systemCommit: mockSystemCommit,
               ggDoPush: mockGgDoPush,
               unlocalizeRefs: mockUnlocalizeRefs,
               sortedProcessingList: mockSortedProcessingList,
@@ -1810,7 +1948,7 @@ void main() {
 
     test('aborts on unlocalize refs failure for specific repos', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -1867,14 +2005,24 @@ void main() {
       });
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
 
       when(
         () => mockGgDoPush.exec(
@@ -1898,6 +2046,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -1942,7 +2092,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -1972,7 +2122,7 @@ void main() {
 
     test('aborts when GetVersion throws', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -2035,14 +2185,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -2064,6 +2224,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -2084,7 +2246,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -2117,7 +2279,7 @@ void main() {
       'updates dependency ref versions when a known ref is used later',
       () async {
         final mockGgDoPublish = MockGgDoPublish();
-        final mockGgDoCommit = MockGgDoCommit();
+        final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
@@ -2197,14 +2359,24 @@ void main() {
         ).thenAnswer((_) async {});
 
         when(
-          () => mockGgDoCommit.exec(
+          () => mockSystemCommit.commit(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             message: any(named: 'message'),
-            force: any(named: 'force'),
-            updateChangeLog: any(named: 'updateChangeLog'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
         when(
           () => mockGgDoPush.exec(
             directory: any(named: 'directory'),
@@ -2226,6 +2398,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
         when(
@@ -2253,7 +2427,7 @@ void main() {
               ggLog: ggLog,
               ensureInRegistry: mockEnsureInRegistry,
               ggDoPublish: mockGgDoPublish,
-              ggDoCommit: mockGgDoCommit,
+              systemCommit: mockSystemCommit,
               ggDoPush: mockGgDoPush,
               unlocalizeRefs: mockUnlocalizeRefs,
               sortedProcessingList: mockSortedProcessingList,
@@ -2281,7 +2455,7 @@ void main() {
 
     test('aborts when updating dependent ref version fails', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
@@ -2356,14 +2530,24 @@ void main() {
       ).thenThrow(Exception('update failed'));
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -2385,6 +2569,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -2412,7 +2598,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             sortedProcessingList: mockSortedProcessingList,
@@ -2443,7 +2629,7 @@ void main() {
 
     test('invokes RestorePublishTo after unlocalize for each repo', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -2500,15 +2686,24 @@ void main() {
         order.add('restore');
       });
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
       ).thenAnswer((_) async {
         order.add('commit');
+        return const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        );
       });
       when(
         () => mockGgDoPush.exec(
@@ -2531,6 +2726,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -2564,7 +2761,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -2587,7 +2784,7 @@ void main() {
 
     test('aborts when RestorePublishTo throws', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -2638,7 +2835,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -2664,7 +2861,7 @@ void main() {
     test('aborts when the dart refresh fails on a resume with step progress '
         '— the only path that still runs it', () async {
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -2752,7 +2949,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -2780,12 +2977,15 @@ void main() {
       );
 
       verifyNever(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
       );
     });
@@ -2803,7 +3003,7 @@ void main() {
         ).writeAsStringSync('{}');
 
         final mockGgDoPublish = MockGgDoPublish();
-        final mockGgDoCommit = MockGgDoCommit();
+        final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockRestorePublishTo = MockRestorePublishTo();
@@ -2879,14 +3079,24 @@ void main() {
           ),
         ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
         when(
-          () => mockGgDoCommit.exec(
+          () => mockSystemCommit.commit(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             message: any(named: 'message'),
-            force: any(named: 'force'),
-            updateChangeLog: any(named: 'updateChangeLog'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
         when(
           () => mockGgDoPush.exec(
             directory: any(named: 'directory'),
@@ -2908,6 +3118,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
         when(
@@ -2920,7 +3132,7 @@ void main() {
               ggLog: ggLog,
               ensureInRegistry: mockEnsureInRegistry,
               ggDoPublish: mockGgDoPublish,
-              ggDoCommit: mockGgDoCommit,
+              systemCommit: mockSystemCommit,
               ggDoPush: mockGgDoPush,
               unlocalizeRefs: mockUnlocalizeRefs,
               restorePublishTo: mockRestorePublishTo,
@@ -2967,7 +3179,7 @@ void main() {
       File(path.join(ticketDir.path, 'A', 'pubspec.yaml')).deleteSync();
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -3030,14 +3242,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -3059,6 +3281,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -3071,7 +3295,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -3117,7 +3341,7 @@ void main() {
       ).writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -3203,14 +3427,24 @@ void main() {
         ),
       ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -3232,6 +3466,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -3244,7 +3480,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -3300,7 +3536,7 @@ void main() {
       ).writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
-      final mockGgDoCommit = MockGgDoCommit();
+      final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockRestorePublishTo = MockRestorePublishTo();
@@ -3384,14 +3620,24 @@ void main() {
         ),
       ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -3413,6 +3659,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -3425,7 +3673,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -3499,7 +3747,7 @@ void main() {
 
   group('DoPublishCommand rollback on failure', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockRestorePublishTo mockRestorePublishTo;
@@ -3518,7 +3766,7 @@ void main() {
           makePublishCommand(
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
             ggDoPush: mockGgDoPush,
@@ -3549,6 +3797,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenThrow(Exception('publish failed'));
     }
@@ -3569,7 +3819,7 @@ void main() {
 
     setUp(() {
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockRestorePublishTo = MockRestorePublishTo();
@@ -3616,14 +3866,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -3801,6 +4061,7 @@ void main() {
         () => mockCanPublishCommand.checkRepo(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          pana: any(named: 'pana'),
         ),
       ).thenThrow(Exception('Cannot publish: A (Exception: pana failed)'));
 
@@ -3863,6 +4124,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       );
     });
@@ -4480,7 +4743,7 @@ void main() {
 
   group('DoPublishCommand configure + resume', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockSortedProcessingList mockSortedProcessingList;
@@ -4502,7 +4765,7 @@ void main() {
 
     setUp(() {
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockSortedProcessingList = MockSortedProcessingList();
@@ -4538,14 +4801,24 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
       when(
         () => mockGgDoPush.exec(
           directory: any(named: 'directory'),
@@ -4567,6 +4840,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
       when(
@@ -4595,26 +4870,42 @@ void main() {
       );
     });
 
-    CommandRunner<void> buildRunner() =>
-        CommandRunner<void>('test', 'do publish ticket')..addCommand(
-          makePublishCommand(
-            ggLog: ggLog,
-            ensureInRegistry: mockEnsureInRegistry,
-            ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
-            ggDoPush: mockGgDoPush,
-            unlocalizeRefs: mockUnlocalizeRefs,
-            sortedProcessingList: mockSortedProcessingList,
-            processRunner: mockProcessRunner.call,
-            canPublishCommand: mockCanPublishCommand,
-            didReviewCommand: mockDidReviewCommand,
-            getVersionCommand: mockGetVersion,
-            setRefVersionCommand: mockSetRefVersion,
-            getRefVersionCommand: mockGetRefVersion,
-            pubDevChecker: mockPubDevChecker,
-            doConfigurePublishCommand: mockConfigure,
+    CommandRunner<void> buildRunner({gg.HasTerminal? hasTerminal}) {
+      // With a terminal the run also asks what happens to the ticket — these
+      // tests are about the configuration, so the offer is declined.
+      gg.InteractAdapter? adapter;
+      if (hasTerminal != null) {
+        final mock = MockInteractAdapter();
+        when(
+          () => mock.choose(
+            message: any(named: 'message'),
+            options: any(named: 'options'),
           ),
-        );
+        ).thenAnswer((_) async => 1);
+        adapter = mock;
+      }
+      return CommandRunner<void>('test', 'do publish ticket')..addCommand(
+        makePublishCommand(
+          ggLog: ggLog,
+          interactAdapter: adapter,
+          ensureInRegistry: mockEnsureInRegistry,
+          ggDoPublish: mockGgDoPublish,
+          systemCommit: mockSystemCommit,
+          ggDoPush: mockGgDoPush,
+          unlocalizeRefs: mockUnlocalizeRefs,
+          sortedProcessingList: mockSortedProcessingList,
+          processRunner: mockProcessRunner.call,
+          canPublishCommand: mockCanPublishCommand,
+          didReviewCommand: mockDidReviewCommand,
+          getVersionCommand: mockGetVersion,
+          setRefVersionCommand: mockSetRefVersion,
+          getRefVersionCommand: mockGetRefVersion,
+          pubDevChecker: mockPubDevChecker,
+          doConfigurePublishCommand: mockConfigure,
+          hasTerminal: hasTerminal,
+        ),
+      );
+    }
 
     test(
       'a registry-visibility lookup failure does not abort the publish',
@@ -4650,6 +4941,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       },
@@ -4721,6 +5014,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).called(1);
         // Review + can-publish are skipped when resuming.
@@ -4735,28 +5030,31 @@ void main() {
 
     test('--restart ignores the saved config and reconfigures', () async {
       when(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenAnswer(
-        (_) async => gg.PublishConfig(
-          versionIncrement: 'patch',
-          mergeMessage: 'reconfigured',
+        (_) async => RepoPublishPlan(
+          override: gg.RepoOverride(
+            versionIncrement: 'patch',
+            mergeMessage: 'reconfigured',
+          ),
+          baseline: Version(1, 0, 0),
         ),
       );
 
-      await buildRunner().run([
-        'publish',
-        '--input',
-        ticketDir.path,
-        '--restart',
-      ]);
+      await buildRunner(
+        hasTerminal: () => true,
+      ).run(['publish', '--input', ticketDir.path, '--restart']);
 
+      // Asked per repo now — and only for the repos that really publish.
       verify(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).called(1);
     });
@@ -4766,31 +5064,31 @@ void main() {
       // handed to it as the default merge message.
       runtimeFile.deleteSync();
       when(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-          defaultMergeMessage: any(named: 'defaultMergeMessage'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenAnswer(
-        (_) async => gg.PublishConfig(
-          versionIncrement: 'patch',
-          mergeMessage: 'Release msg',
+        (_) async => RepoPublishPlan(
+          override: gg.RepoOverride(
+            versionIncrement: 'patch',
+            mergeMessage: 'Release msg',
+          ),
+          baseline: Version(1, 0, 0),
         ),
       );
 
-      await buildRunner().run([
-        'publish',
-        '--input',
-        ticketDir.path,
-        '-m',
-        'Release msg',
-      ]);
+      await buildRunner(
+        hasTerminal: () => true,
+      ).run(['publish', '--input', ticketDir.path, '-m', 'Release msg']);
 
+      // -m becomes the seed of every per-repo prompt.
       verify(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-          defaultMergeMessage: 'Release msg',
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: 'Release msg',
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).called(1);
     });
@@ -4819,12 +5117,15 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(1);
       verifyNever(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       );
     });
@@ -4945,6 +5246,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).called(1);
         // The repo-level runtime file was gitignored before the pre-publish
@@ -5000,6 +5303,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -5026,6 +5331,8 @@ void main() {
           pr: false,
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -5049,6 +5356,8 @@ void main() {
             pr: null,
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       },
@@ -5192,6 +5501,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ).called(1);
       },
@@ -5235,6 +5546,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(1);
     });
@@ -5251,24 +5564,24 @@ void main() {
 }
 ''');
       when(
-        () => mockConfigure.configure(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-          defaultMergeMessage: any(named: 'defaultMergeMessage'),
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenAnswer(
-        (_) async => gg.PublishConfig(
-          versionIncrement: 'patch',
-          mergeMessage: 'reconfigured',
+        (_) async => RepoPublishPlan(
+          override: gg.RepoOverride(
+            versionIncrement: 'patch',
+            mergeMessage: 'reconfigured',
+          ),
+          baseline: Version(1, 0, 0),
         ),
       );
 
-      await buildRunner().run([
-        'publish',
-        '--input',
-        ticketDir.path,
-        '--restart',
-      ]);
+      await buildRunner(
+        hasTerminal: () => true,
+      ).run(['publish', '--input', ticketDir.path, '--restart']);
 
       // Stale gg_one step progress must not seed the reconfigured run.
       expect(repoRuntime.existsSync(), isFalse);
@@ -5277,7 +5590,7 @@ void main() {
 
   group('DoPublishCommand skip unchanged repos', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockSortedProcessingList mockSortedProcessingList;
@@ -5297,7 +5610,7 @@ void main() {
 
     setUp(() {
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockSortedProcessingList = MockSortedProcessingList();
@@ -5349,14 +5662,24 @@ void main() {
       ).thenAnswer((_) async {});
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
 
       when(
         () => mockGgDoPush.exec(
@@ -5380,6 +5703,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -5428,17 +5753,20 @@ void main() {
 
     /// Builds the command under test with all mocks wired up.
     CommandRunner<void> buildRunner({
-      gg.DidPublish? ggDidPublish,
       gg.InteractAdapter? interactAdapter,
       gg.HasTerminal? hasTerminal,
       TicketState? ticketState,
+      RepoConfigurator? doConfigurePublishCommand,
+      PublishedVersion? publishedVersion,
     }) => CommandRunner<void>('test', 'do publish ticket')
       ..addCommand(
         makePublishCommand(
           ggLog: ggLog,
+          doConfigurePublishCommand: doConfigurePublishCommand,
+          publishedVersion: publishedVersion,
           ensureInRegistry: mockEnsureInRegistry,
           ggDoPublish: mockGgDoPublish,
-          ggDoCommit: mockGgDoCommit,
+          systemCommit: mockSystemCommit,
           ggDoPush: mockGgDoPush,
           unlocalizeRefs: mockUnlocalizeRefs,
           sortedProcessingList: mockSortedProcessingList,
@@ -5450,7 +5778,6 @@ void main() {
           getRefVersionCommand: mockGetRefVersion,
           pubDevChecker: mockPubDevChecker,
           publishSkipCheck: mockSkipCheck,
-          ggDidPublish: ggDidPublish,
           interactAdapter: interactAdapter,
           hasTerminal: hasTerminal,
           ticketState: ticketState,
@@ -5474,6 +5801,165 @@ void main() {
               );
       });
     }
+
+    test(
+      'predicts the incremented version a dependent resolves against',
+      () async {
+        // A publishes with the increment the config supplies, so nobody is
+        // asked and no baseline travels along — the prediction has to fetch
+        // the published version itself. B must then see A's *next* version,
+        // not its current one.
+        File(
+          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
+        ).writeAsStringSync(
+          jsonEncode({
+            'version_increment': 'minor',
+            'merge_message': 'test merge',
+          }),
+        );
+        stubSkipCheck(<String>{});
+
+        final publishedVersion = MockPublishedVersion();
+        when(
+          () => publishedVersion.get(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer((_) async => Version(1, 2, 3));
+
+        await buildRunner(
+          publishedVersion: publishedVersion,
+        ).run(['publish', '--input', ticketDir.path]);
+
+        // 1.2.3 + minor = 1.3.0 — the version B is judged against.
+        final captured = verify(
+          () => mockSkipCheck.get(
+            repo: any(named: 'repo'),
+            refVersions: captureAny(named: 'refVersions'),
+          ),
+        ).captured;
+        expect(captured.last, containsPair('A', '1.3.0'));
+      },
+    );
+
+    test('fails with an actionable message when nobody can be asked', () async {
+      // A repo needs a release, the config answers nothing for it and stdin
+      // is no terminal — a headless run must say what to do instead of
+      // hanging on a prompt nobody can answer.
+      File(
+        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
+      ).writeAsStringSync(jsonEncode({'repos': <String, dynamic>{}}));
+      stubSkipCheck({'A'});
+
+      await expectLater(
+        buildRunner().run(['publish', '--input', ticketDir.path]),
+        throwsA(
+          isA<Exception>().having(
+            (e) => rmControls(e.toString()),
+            'message',
+            allOf(
+              contains('B needs a publish'),
+              contains('gg do configure-publish'),
+              contains('--config'),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('asks only for the repos the configuration does not cover', () async {
+      // The config answers A but says nothing about B — and A is skipped
+      // anyway, so exactly one question is asked, for B.
+      File(
+        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
+      ).writeAsStringSync(
+        jsonEncode({
+          'repos': {
+            'A': {'version_increment': 'patch', 'merge_message': 'a msg'},
+          },
+        }),
+      );
+      stubSkipCheck({'A'});
+
+      final configure = MockConfigurePublishCommand();
+      when(
+        () => configure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
+        ),
+      ).thenAnswer(
+        (_) async => RepoPublishPlan(
+          override: gg.RepoOverride(
+            versionIncrement: 'minor',
+            mergeMessage: 'asked for B',
+          ),
+          baseline: Version(2, 0, 0),
+        ),
+      );
+
+      final adapter = MockInteractAdapter();
+      when(
+        () => adapter.choose(
+          message: any(named: 'message'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((_) async => 1);
+
+      await buildRunner(
+        doConfigurePublishCommand: configure,
+        interactAdapter: adapter,
+        hasTerminal: () => true,
+      ).run(['publish', '--input', ticketDir.path]);
+
+      final asked = verify(
+        () => configure.configureRepo(
+          repoDir: captureAny(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
+        ),
+      )..called(1);
+      expect(path.basename((asked.captured.single as Directory).path), 'B');
+
+      // The answer reaches the publish.
+      verify(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: 'asked for B',
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
+    test(
+      'reports that nothing was published when every repo is unchanged',
+      () async {
+        // A ticket carrying nothing but gg's own bookkeeping releases
+        // nothing — claiming »All repos published« would be a lie the user
+        // acts on.
+        stubSkipCheck({'A', 'B'});
+
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        final log = messages.join('\n');
+        expect(
+          log,
+          contains('Nothing to publish — every repo is already published'),
+        );
+        expect(log, isNot(contains('All repos published')));
+      },
+    );
 
     test('skips an unchanged repo and still propagates its version', () async {
       stubSkipCheck({'A'});
@@ -5507,6 +5993,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
       expect(publishedDirs, hasLength(1));
@@ -5528,75 +6016,26 @@ void main() {
       );
     });
 
-    test(
-      'keeps the localized refs of a skipped repo and records didPublish',
-      () async {
-        // A skipped repo stays workable: its references keep pointing at the
-        // sibling checkouts, because the ticket stays in place. Only the
-        // published repo is unlocalized for its release.
-        stubSkipCheck({'A'});
-        final mockGgDidPublish = MockGgDidPublish();
-        when(
-          () => mockGgDidPublish.set(directory: any(named: 'directory')),
-        ).thenAnswer((_) async {});
-
-        await buildRunner(
-          ggDidPublish: mockGgDidPublish,
-        ).run(['publish', '--input', ticketDir.path]);
-
-        final unlocalized = verify(
-          () => mockUnlocalizeRefs.get(
-            directory: captureAny(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
-          ),
-        ).captured.cast<Directory>().map((d) => path.basename(d.path));
-        expect(unlocalized, isNot(contains('A')));
-        expect(unlocalized, contains('B'));
-
-        // Both repos are recorded as published: B by its publish, the
-        // skipped A because its content is already released.
-        final recorded = verify(
-          () => mockGgDidPublish.set(directory: captureAny(named: 'directory')),
-        ).captured.cast<Directory>().map((d) => path.basename(d.path));
-        expect(recorded, containsAll(<String>['A', 'B']));
-      },
-    );
-
-    test('reports a didPublish marker that could not be written and '
-        'continues', () async {
+    test('keeps the localized refs of a skipped repo', () async {
+      // A skipped repo stays workable: its references keep pointing at the
+      // sibling checkouts, because the ticket stays in place. Only the
+      // published repo is unlocalized for its release.
+      //
+      // Nothing records a »published« marker any more — »gg did publish«
+      // reads the tags, so it cannot claim »released« for a repo whose work
+      // is still sitting unreleased on the default branch.
       stubSkipCheck({'A'});
-      final mockGgDidPublish = MockGgDidPublish();
-      when(
-        () => mockGgDidPublish.set(
-          directory: any(
-            named: 'directory',
-            that: predicate<Directory>((d) => path.basename(d.path) == 'A'),
-          ),
+
+      await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+      final unlocalized = verify(
+        () => mockUnlocalizeRefs.get(
+          directory: captureAny(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
         ),
-      ).thenThrow(Exception('no commits yet'));
-      when(
-        () => mockGgDidPublish.set(
-          directory: any(
-            named: 'directory',
-            that: predicate<Directory>((d) => path.basename(d.path) == 'B'),
-          ),
-        ),
-      ).thenAnswer((_) async {});
-
-      await buildRunner(
-        ggDidPublish: mockGgDidPublish,
-      ).run(['publish', '--input', ticketDir.path, '--verbose']);
-
-      expect(
-        messages.any((m) => m.contains('Could not record didPublish for A')),
-        isTrue,
-      );
-
-      // The run still finished: the resume anchor is gone again.
-      expect(
-        File(path.join(ticketDir.path, '.gg', 'gg-publish.json')).existsSync(),
-        isFalse,
-      );
+      ).captured.cast<Directory>().map((d) => path.basename(d.path));
+      expect(unlocalized, isNot(contains('A')));
+      expect(unlocalized, contains('B'));
     });
 
     test(
@@ -5738,8 +6177,10 @@ void main() {
 
     group('the end-of-run cleanup offer', () {
       test('offers the cleanup and trashes the ticket on accept', () async {
-        // Both repos skip — the run publishes nothing.
-        stubSkipCheck({'A', 'B'});
+        // A skips, B publishes — a run that releases something is the only
+        // one that reaches the cleanup offer. A run in which nothing happened
+        // is never asked whether the ticket may go to the trash.
+        stubSkipCheck({'A'});
         File(
           path.join(ticketDir.path, 'TICKPB.code-workspace'),
         ).writeAsStringSync('{"folders": []}');
@@ -5857,6 +6298,8 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
           ),
         ]);
 
@@ -5937,10 +6380,41 @@ void main() {
         },
       );
 
+      test('does not ask again when the answer is already recorded', () async {
+        // A run that failed after the question left `delete_ticket` behind.
+        // The resume must act on it instead of asking a second time.
+        stubSkipCheck({'A'});
+        File(
+          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
+        ).writeAsStringSync('''
+{
+  "version_increment": "patch",
+  "merge_message": "test merge",
+  "delete_ticket": false
+}
+''');
+
+        final adapter = MockInteractAdapter();
+
+        await buildRunner(
+          interactAdapter: adapter,
+          hasTerminal: () => true,
+        ).run(['publish', '--input', ticketDir.path]);
+
+        verifyNever(
+          () => adapter.choose(
+            message: any(named: 'message'),
+            options: any(named: 'options'),
+          ),
+        );
+        expect(ticketDir.existsSync(), isTrue);
+      });
+
       test(
         '--no-delete-remote-branch keeps the branches when trashing',
         () async {
-          stubSkipCheck({'A', 'B'});
+          // B publishes — only a productive run reaches the cleanup offer.
+          stubSkipCheck({'A'});
           final adapter = MockInteractAdapter();
           when(
             () => adapter.choose(
@@ -6004,6 +6478,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
       expect(publishedDirs.map((d) => path.basename(d.path)), ['A', 'B']);
@@ -6026,6 +6502,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenThrow(Exception('registry down'));
 
@@ -6097,6 +6575,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
       expect(publishedDirs.map((d) => path.basename(d.path)), ['A']);
@@ -6107,7 +6587,7 @@ void main() {
 
   group('DoPublishCommand in merge mode', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockRestorePublishTo mockRestorePublishTo;
@@ -6122,7 +6602,7 @@ void main() {
 
     setUp(() {
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockRestorePublishTo = MockRestorePublishTo();
@@ -6186,14 +6666,24 @@ void main() {
       ).thenAnswer((_) async {});
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
 
       when(
         () => mockGgDoPush.exec(
@@ -6217,6 +6707,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
 
@@ -6248,7 +6740,7 @@ void main() {
             ensureInRegistry: mockEnsureInRegistry,
             mergeOnly: true,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -6277,7 +6769,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -6317,6 +6809,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: false,
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(2);
 
@@ -6341,6 +6835,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: false,
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(2);
 
@@ -6417,6 +6913,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: true,
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).called(2);
     });
@@ -6482,6 +6980,7 @@ void main() {
           () => mockCanPublishCommand.checkRepo(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            pana: any(named: 'pana'),
           ),
         ).thenAnswer((invocation) {
           final dir = invocation.namedArguments[#directory] as Directory;
@@ -6501,6 +7000,7 @@ void main() {
           () => mockCanPublishCommand.checkRepo(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            pana: any(named: 'pana'),
           ),
         ).called(2);
 
@@ -6535,6 +7035,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenThrow(Exception('merge failed'));
 
@@ -6555,7 +7057,7 @@ void main() {
   // ...........................................................................
   group('DoPublishCommand per repo publish gate', () {
     late MockGgDoPublish mockGgDoPublish;
-    late MockGgDoCommit mockGgDoCommit;
+    late MockGgSystemCommit mockSystemCommit;
     late MockGgDoPush mockGgDoPush;
     late MockUnlocalizeRefs mockUnlocalizeRefs;
     late MockRestorePublishTo mockRestorePublishTo;
@@ -6581,7 +7083,7 @@ void main() {
     setUp(() {
       calls = [];
       mockGgDoPublish = MockGgDoPublish();
-      mockGgDoCommit = MockGgDoCommit();
+      mockSystemCommit = MockGgSystemCommit();
       mockGgDoPush = MockGgDoPush();
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockRestorePublishTo = MockRestorePublishTo();
@@ -6662,19 +7164,31 @@ void main() {
       ).thenAnswer((i) async => calls.add('cancommit:${repoOf(i)}'));
 
       when(
-        () => mockGgDoCommit.exec(
+        () => mockSystemCommit.commit(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
           message: any(named: 'message'),
-          force: any(named: 'force'),
-          updateChangeLog: any(named: 'updateChangeLog'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
         ),
-      ).thenAnswer((i) async => calls.add('commit:${repoOf(i)}'));
+      ).thenAnswer((i) async {
+        calls.add('commit:${repoOf(i)}');
+        return const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        );
+      });
 
       when(
         () => mockCanPublishCommand.checkRepo(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          pana: any(named: 'pana'),
         ),
       ).thenAnswer((i) async => calls.add('gate:${repoOf(i)}'));
 
@@ -6700,6 +7214,8 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
         ),
       ).thenAnswer((i) async => calls.add('publish:${repoOf(i)}'));
 
@@ -6740,7 +7256,7 @@ void main() {
             ggLog: ggLog,
             ensureInRegistry: mockEnsureInRegistry,
             ggDoPublish: mockGgDoPublish,
-            ggDoCommit: mockGgDoCommit,
+            systemCommit: mockSystemCommit,
             ggDoPush: mockGgDoPush,
             unlocalizeRefs: mockUnlocalizeRefs,
             restorePublishTo: mockRestorePublishTo,
@@ -6767,6 +7283,7 @@ void main() {
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
             verbose: any(named: 'verbose'),
+            pana: any(named: 'pana'),
             includeCanPublish: false,
           ),
         ).called(1);
@@ -6774,10 +7291,208 @@ void main() {
           () => mockCanPublishCommand.checkRepo(
             directory: any(named: 'directory'),
             ggLog: any(named: 'ggLog'),
+            pana: any(named: 'pana'),
           ),
         ).called(2);
       },
     );
+
+    group('--no-pana', () {
+      /// The pana values the two halves of the gate were called with.
+      List<bool?> panaOfGate() => [
+        ...verify(
+          () => mockCanPublishCommand.checkTicket(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            verbose: any(named: 'verbose'),
+            pana: captureAny(named: 'pana'),
+            includeCanPublish: any(named: 'includeCanPublish'),
+          ),
+        ).captured.cast<bool?>(),
+        ...verify(
+          () => mockCanPublishCommand.checkRepo(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            pana: captureAny(named: 'pana'),
+          ),
+        ).captured.cast<bool?>(),
+      ];
+
+      /// The options gg_one's »do publish« was called with per repo.
+      List<Map<String, dynamic>> panaOfGgDoPublish() => verify(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: captureAny(named: 'options'),
+        ),
+      ).captured.cast<Map<String, dynamic>>();
+
+      test('turns pana off everywhere it is checked', () async {
+        await buildRunner().run([
+          'publish',
+          '--no-pana',
+          '--input',
+          ticketDir.path,
+        ]);
+
+        // checkTicket once, checkRepo per repo.
+        expect(panaOfGate(), [false, false, false]);
+        expect(panaOfGgDoPublish(), [
+          {gg.panaOption: false},
+          {gg.panaOption: false},
+        ]);
+      });
+
+      test('runs pana by default', () async {
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        expect(panaOfGate(), [true, true, true]);
+        expect(panaOfGgDoPublish(), [
+          {gg.panaOption: true},
+          {gg.panaOption: true},
+        ]);
+      });
+
+      test('takes the value from the exec options', () async {
+        await makePublishCommand(
+          ggLog: ggLog,
+          ensureInRegistry: mockEnsureInRegistry,
+          ggDoPublish: mockGgDoPublish,
+          systemCommit: mockSystemCommit,
+          ggDoPush: mockGgDoPush,
+          unlocalizeRefs: mockUnlocalizeRefs,
+          restorePublishTo: mockRestorePublishTo,
+          sortedProcessingList: mockSortedProcessingList,
+          processRunner: mockProcessRunner.call,
+          canPublishCommand: mockCanPublishCommand,
+          didReviewCommand: mockDidReviewCommand,
+          getVersionCommand: mockGetVersion,
+          setRefVersionCommand: mockSetRefVersion,
+          getRefVersionCommand: mockGetRefVersion,
+          pubDevChecker: mockPubDevChecker,
+          ggDoUpgradeDeps: mockUpgradeDeps,
+          ggCanCommit: mockGgCanCommit,
+        ).exec(
+          directory: ticketDir,
+          ggLog: ggLog,
+          options: const <String, dynamic>{gg.panaOption: false},
+        );
+
+        expect(panaOfGate(), [false, false, false]);
+      });
+    });
+
+    group('for hybrids and registry-less repos', () {
+      /// A hybrid refreshes its dependencies through the node package
+      /// manager, which the surrounding fixture does not stub.
+      void stubNodeRefresh() {
+        for (final pm in <String>['pnpm', 'npm', 'yarn']) {
+          when(
+            () => mockProcessRunner(
+              pm,
+              any(),
+              workingDirectory: any(named: 'workingDirectory'),
+              environment: any(named: 'environment'),
+            ),
+          ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
+        }
+      }
+
+      /// Turns repo A into a hybrid whose npm side is at
+      /// [packageJsonVersion].
+      void makeAHybrid({
+        required String pubspecVersion,
+        required String packageJsonVersion,
+      }) {
+        File(
+          path.join(ticketDir.path, 'A', 'pubspec.yaml'),
+        ).writeAsStringSync('name: A\nversion: $pubspecVersion\n');
+        File(path.join(ticketDir.path, 'A', 'package.json')).writeAsStringSync(
+          '{"name": "@org/a", "version": "$packageJsonVersion"}',
+        );
+        stubNodeRefresh();
+      }
+
+      /// The dependency names the run looked up while propagating versions.
+      List<String> lookedUpRefs() => verify(
+        () => mockGetRefVersion.get(
+          directory: any(named: 'directory'),
+          ref: captureAny(named: 'ref'),
+        ),
+      ).captured.cast<String>();
+
+      test('turns pana off for a repo whose manifests drifted', () async {
+        // gg_one reconciles them and then skips pana, because the reconciled
+        // version has no CHANGELOG.md section. The gate runs before that, so
+        // it has to reach the same conclusion itself.
+        makeAHybrid(pubspecVersion: '1.0.2', packageJsonVersion: '1.0.1');
+
+        await buildRunner().run([
+          'publish',
+          '--input',
+          ticketDir.path,
+          '--verbose',
+        ]);
+
+        expect(
+          messages.join('\n'),
+          contains('A: the manifests disagree on the version'),
+        );
+        // A is drifted, B is not.
+        final panaPerRepo = verify(
+          () => mockCanPublishCommand.checkRepo(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            pana: captureAny(named: 'pana'),
+          ),
+        ).captured.cast<bool?>();
+        expect(panaPerRepo, [false, true]);
+      });
+
+      test('registers both names of a hybrid as reference versions', () async {
+        // A Dart dependent resolves »A«, an npm dependent »@org/a« — both
+        // constraints have to be updated.
+        makeAHybrid(pubspecVersion: '1.0.1', packageJsonVersion: '1.0.1');
+
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        // verify() consumes the recorded calls, so capture them once.
+        final refs = lookedUpRefs();
+        expect(refs, contains('A'));
+        expect(refs, contains('@org/a'));
+      });
+
+      test('still records a name for a repo without a registry', () async {
+        // »publish_to: none« leaves no registry, but the version still has to
+        // reach the dependents' constraints.
+        File(
+          path.join(ticketDir.path, 'A', 'pubspec.yaml'),
+        ).writeAsStringSync('name: A\nversion: 1.0.1\npublish_to: none\n');
+
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        expect(lookedUpRefs(), contains('A'));
+      });
+
+      test('falls back to the directory name without a manifest', () async {
+        File(path.join(ticketDir.path, 'A', 'pubspec.yaml')).deleteSync();
+
+        await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+        expect(lookedUpRefs(), contains('A'));
+      });
+    });
 
     test('checks a repo after its refs point at pub.dev and after its '
         'dependencies were published', () async {
@@ -6813,6 +7528,7 @@ void main() {
         () => mockCanPublishCommand.checkRepo(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          pana: any(named: 'pana'),
         ),
       ).thenAnswer((invocation) async {
         final log = invocation.namedArguments[#ggLog] as void Function(String);
@@ -6830,6 +7546,7 @@ void main() {
         () => mockCanPublishCommand.checkRepo(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          pana: any(named: 'pana'),
         ),
       ).thenAnswer((i) async {
         calls.add('gate:${repoOf(i)}');
@@ -6911,6 +7628,31 @@ void main() {
       expect(calls, isNot(contains('gate:B')));
       expect(calls, isNot(contains('push:B')));
       expect(calls, isNot(contains('publish:B')));
+    });
+
+    test('tells gg_one not to upgrade again', () async {
+      // This loop upgraded every repo itself, in dependency order — gg_one
+      // repeating it per repo would only resolve the same repo twice.
+      await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+      verify(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          upgrade: false,
+          options: any(named: 'options'),
+        ),
+      ).called(2);
     });
 
     test('a failing can commit fails the repo like a rejected gate', () async {
@@ -7073,6 +7815,7 @@ void stubCanPublish(MockCanPublishCommand mock) {
       directory: any(named: 'directory'),
       ggLog: any(named: 'ggLog'),
       verbose: any(named: 'verbose'),
+      pana: any(named: 'pana'),
       includeCanPublish: any(named: 'includeCanPublish'),
     ),
   ).thenAnswer((_) async {});
@@ -7081,6 +7824,7 @@ void stubCanPublish(MockCanPublishCommand mock) {
     () => mock.checkRepo(
       directory: any(named: 'directory'),
       ggLog: any(named: 'ggLog'),
+      pana: any(named: 'pana'),
     ),
   ).thenAnswer((_) async {});
 }
@@ -7185,7 +7929,7 @@ void _stubRepoSnapshot(MockProcessRunner runner) {
 DoPublishCommand makePublishCommand({
   required GgLog ggLog,
   bool mergeOnly = false,
-  gg.DoCommit? ggDoCommit,
+  gg.GgSystemCommit? systemCommit,
   gg.DoUpgradeDeps? ggDoUpgradeDeps,
   gg.CanCommit? ggCanCommit,
   ChangeRefsToPubDev? unlocalizeRefs,
@@ -7193,7 +7937,6 @@ DoPublishCommand makePublishCommand({
   RestorePublishTo? restorePublishTo,
   gg.DoPush? ggDoPush,
   gg.DoPublish? ggDoPublish,
-  gg.DidPublish? ggDidPublish,
   SortedProcessingList? sortedProcessingList,
   ProcessRunner? processRunner,
   CanPublishCommand? canPublishCommand,
@@ -7204,7 +7947,9 @@ DoPublishCommand makePublishCommand({
   PubDevChecker? pubDevChecker,
   NpmRegistryChecker? npmChecker,
   PublishSkipCheck? publishSkipCheck,
-  DoConfigurePublishCommand? doConfigurePublishCommand,
+  PublishedVersion? publishedVersion,
+  RepoConfigurator? doConfigurePublishCommand,
+  ReadManifestVersion? readManifestVersion,
   gg.EnsurePublishConfigIgnored? ensureIgnored,
   EnsureInRegistry? ensureInRegistry,
   TicketState? ticketState,
@@ -7241,13 +7986,6 @@ DoPublishCommand makePublishCommand({
     ).thenAnswer((_) async {});
     localizeRefs = mock;
   }
-  if (ggDidPublish == null) {
-    final mock = MockGgDidPublish();
-    when(
-      () => mock.set(directory: any(named: 'directory')),
-    ).thenAnswer((_) async {});
-    ggDidPublish = mock;
-  }
   if (ticketState == null) {
     final mock = MockTicketState();
     when(
@@ -7263,7 +8001,7 @@ DoPublishCommand makePublishCommand({
   return DoPublishCommand(
     ggLog: ggLog,
     mergeOnly: mergeOnly,
-    ggDoCommit: ggDoCommit,
+    systemCommit: systemCommit,
     ggDoUpgradeDeps: ggDoUpgradeDeps,
     ggCanCommit: ggCanCommit,
     unlocalizeRefs: unlocalizeRefs,
@@ -7271,7 +8009,6 @@ DoPublishCommand makePublishCommand({
     restorePublishTo: restorePublishTo,
     ggDoPush: ggDoPush,
     ggDoPublish: ggDoPublish,
-    ggDidPublish: ggDidPublish,
     sortedProcessingList: sortedProcessingList,
     processRunner: processRunner,
     canPublishCommand: canPublishCommand,
@@ -7282,7 +8019,17 @@ DoPublishCommand makePublishCommand({
     pubDevChecker: pubDevChecker,
     npmChecker: npmChecker,
     publishSkipCheck: publishSkipCheck,
-    doConfigurePublishCommand: doConfigurePublishCommand,
+    publishedVersion: publishedVersion,
+    publishPlanner: doConfigurePublishCommand == null
+        ? null
+        : StubPlanner(
+            doConfigurePublishCommand,
+            ggLog: ggLog,
+            publishSkipCheck: publishSkipCheck,
+            publishedVersion: publishedVersion,
+            readManifestVersion: readManifestVersion,
+            hasTerminal: hasTerminal,
+          ),
     ensureIgnored: ensureIgnored,
     ensureInRegistry: ensureInRegistry,
     ticketState: ticketState,

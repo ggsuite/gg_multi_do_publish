@@ -4,6 +4,7 @@
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
 
+import 'package:gg_git/gg_git.dart';
 import 'dart:io';
 
 import 'package:gg_args/gg_args.dart';
@@ -74,14 +75,26 @@ class CanPublishCommand extends DirCommand<void> {
     required Directory directory,
     required GgLog ggLog,
     bool? verbose,
-  }) => get(directory: directory, ggLog: ggLog, verbose: verbose);
+    Map<String, dynamic> options = const {},
+  }) => get(
+    directory: directory,
+    ggLog: ggLog,
+    verbose: verbose,
+    pana: options[gg.panaOption] as bool?,
+  );
 
   @override
   Future<void> get({
     required Directory directory,
     required GgLog ggLog,
     bool? verbose,
-  }) => checkTicket(directory: directory, ggLog: ggLog, verbose: verbose);
+    bool? pana,
+  }) => checkTicket(
+    directory: directory,
+    ggLog: ggLog,
+    verbose: verbose,
+    pana: pana,
+  );
 
   /// Runs the ticket wide publish readiness checks for [directory].
   ///
@@ -90,13 +103,18 @@ class CanPublishCommand extends DirCommand<void> {
   /// `false` and calls [checkRepo] per repo instead: only there are the refs
   /// unlocalized and the dependencies published earlier in the same run
   /// already on their registry, so pana can resolve them.
+  ///
+  /// [pana] turns the pana analysis inside `gg can publish` off; it defaults to
+  /// `--[no-]pana` from the command line, which in turn defaults to running it.
   Future<void> checkTicket({
     required Directory directory,
     required GgLog ggLog,
     bool? verbose,
+    bool? pana,
     bool includeCanPublish = true,
   }) async {
     verbose ??= argResults?['verbose'] as bool? ?? false;
+    pana ??= _panaFromArgs;
 
     // Step 1: Detect ticket folder -----------------------------------------
     final String? ticketPath = WorkspaceUtils.detectTicketPath(
@@ -181,7 +199,9 @@ class CanPublishCommand extends DirCommand<void> {
         message: 'Can publish?',
         ggLog: ggLog,
         dark: true,
-      ).run(() async => _checkCanPublish(subs: subs, ggLog: taskLog));
+      ).run(
+        () async => _checkCanPublish(subs: subs, ggLog: taskLog, pana: pana!),
+      );
     }
 
     // All successful --------------------------------------------------------
@@ -201,10 +221,15 @@ class CanPublishCommand extends DirCommand<void> {
   Future<void> checkRepo({
     required Directory directory,
     required GgLog ggLog,
+    bool? pana,
   }) async {
-    final failure = await _canPublishFailure(repoDir: directory, ggLog: ggLog);
+    final failure = await _canPublishFailure(
+      repoDir: directory,
+      ggLog: ggLog,
+      pana: pana ?? _panaFromArgs,
+    );
     if (failure != null) {
-      throw Exception(cDetail('Cannot publish.'));
+      throw Exception(_failureMessage('Cannot publish.', [failure]));
     }
   }
 
@@ -293,7 +318,11 @@ class CanPublishCommand extends DirCommand<void> {
     final result = await _processRunner('git', [
       'commit',
       '-m',
-      '#gg: Update $files',
+      '${gg.ggCommitPrefix}Update $files',
+      // The pathspec belongs on the commit as well, not only on the »add«:
+      // without it the commit takes whatever else the index already holds.
+      '--',
+      ...lockFiles,
     ], workingDirectory: repoDir.path);
 
     if (result.exitCode != 0) {
@@ -352,17 +381,23 @@ class CanPublishCommand extends DirCommand<void> {
   Future<String?> _canPublishFailure({
     required Directory repoDir,
     required GgLog ggLog,
+    required bool pana,
   }) async {
     final repoName = path.basename(repoDir.path);
     ggLog('\n${cH1(repoName)}');
     try {
-      await _ggCanPublish.exec(directory: repoDir, ggLog: ggLog);
+      await _ggCanPublish.exec(
+        directory: repoDir,
+        ggLog: ggLog,
+        options: <String, dynamic>{gg.panaOption: pana},
+      );
       return null;
     } catch (e) {
-      // The reason is printed once, right under the repo it belongs to.
-      // What travels on is only the name.
+      // The reason is printed once, right under the repo it belongs to —
+      // but that log is silent without --verbose, so it travels on with the
+      // repo name as well.
       ggLog([cDetail('✗ Cannot publish'), cError(rmControls('$e'))].join('\n'));
-      return repoName;
+      return '$repoName: ${_reasonOf(e)}';
     }
   }
 
@@ -371,12 +406,14 @@ class CanPublishCommand extends DirCommand<void> {
   Future<void> _checkCanPublish({
     required List<Node> subs,
     required GgLog ggLog,
+    required bool pana,
   }) async {
     final failedRepos = <String>[];
     for (final repo in subs) {
       final failure = await _canPublishFailure(
         repoDir: repo.directory,
         ggLog: ggLog,
+        pana: pana,
       );
       if (failure != null) {
         failedRepos.add(failure);
@@ -384,11 +421,40 @@ class CanPublishCommand extends DirCommand<void> {
     }
     if (failedRepos.isNotEmpty) {
       ggLog(cAction('\nPlease fix the issues above.\n'));
-      throw Exception(cDetail('Cannot publish.'));
+      throw Exception(_failureMessage('Cannot publish.', failedRepos));
     }
   }
 
+  // ...........................................................................
+  /// The summary line plus one indented line per failing repo, all in
+  /// [cDetail].
+  ///
+  /// The per-repo detail is logged to the task log, which is silent without
+  /// `--verbose` — so the reason has to travel in the exception too, or the
+  /// user is left with a bare »Cannot merge.« and no way to act on it.
+  static String _failureMessage(String summary, List<String> failures) =>
+      cDetail([summary, ...failures.map((f) => '  - $f')].join('\n'));
+
+  // ...........................................................................
+  /// The human-readable part of [error] — an `Exception`'s message, with the
+  /// color codes and the »Exception: « prefix removed.
+  static String _reasonOf(Object error) {
+    var reason = rmControls('$error').trim();
+    const prefix = 'Exception: ';
+    if (reason.startsWith(prefix)) {
+      reason = reason.substring(prefix.length).trim();
+    }
+    return reason;
+  }
+
   /// Checks the npm authentication of every repository in the ticket.
+  ///
+  /// gg_one skips every repository that does not publish to npm, so only the
+  /// ones that really need the credentials can fail here. Which those are has
+  /// to be in the exception: a ticket mixes pub.dev, npm and registry-less
+  /// repos, and a bare »Not logged in to npm.« reads like the check fired for
+  /// a package that publishes nowhere near npm — the per-repo reason below
+  /// goes to the task log, which is silent without `--verbose`.
   Future<void> _checkNpmLoggedIn({
     required List<Node> subs,
     required GgLog ggLog,
@@ -407,12 +473,12 @@ class CanPublishCommand extends DirCommand<void> {
             cError(rmControls('$e')),
           ].join('\n'),
         );
-        failedRepos.add(repoName);
+        failedRepos.add('$repoName: ${_reasonOf(e)}');
       }
     }
     if (failedRepos.isNotEmpty) {
       ggLog(cAction('\nPlease fix the issues above.\n'));
-      throw Exception(cDetail('Not logged in to npm.'));
+      throw Exception(_failureMessage('Not logged in to npm.', failedRepos));
     }
   }
 
@@ -421,7 +487,7 @@ class CanPublishCommand extends DirCommand<void> {
     required List<Node> subs,
     required GgLog ggLog,
   }) async {
-    final failedMergeRepos = <String>[];
+    final failures = <String>[];
     for (final repo in subs) {
       final repoDir = repo.directory;
       final repoName = path.basename(repoDir.path);
@@ -430,17 +496,27 @@ class CanPublishCommand extends DirCommand<void> {
         await _ggCanMerge.exec(directory: repoDir, ggLog: ggLog);
       } catch (e) {
         ggLog([cDetail('✗ Cannot merge'), cError(rmControls('$e'))].join('\n'));
-        failedMergeRepos.add(repoName);
+        failures.add('$repoName: ${_reasonOf(e)}');
       }
     }
-    if (failedMergeRepos.isNotEmpty) {
+    if (failures.isNotEmpty) {
       ggLog(cAction('\nPlease fix the issues above.\n'));
-      throw Exception(cDetail('Cannot merge.'));
+      throw Exception(_failureMessage('Cannot merge.', failures));
     }
   }
 
+  /// Whether `--[no-]pana` was given; pana runs unless it was turned off.
+  bool get _panaFromArgs => argResults?[gg.panaOption] as bool? ?? true;
+
   // Adds command line arguments
   void _addArgs() {
+    argParser.addFlag(
+      gg.panaOption,
+      help: 'Run »dart run pana« as part of »gg can publish«.',
+      defaultsTo: true,
+      negatable: true,
+    );
+
     argParser.addFlag(
       'verbose',
       abbr: 'v',
