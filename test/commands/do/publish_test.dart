@@ -6344,6 +6344,36 @@ void main() {
         },
       );
 
+      test('does not ask again when the answer is already recorded', () async {
+        // A run that failed after the question left `delete_ticket` behind.
+        // The resume must act on it instead of asking a second time.
+        stubSkipCheck({'A'});
+        File(
+          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
+        ).writeAsStringSync('''
+{
+  "version_increment": "patch",
+  "merge_message": "test merge",
+  "delete_ticket": false
+}
+''');
+
+        final adapter = MockInteractAdapter();
+
+        await buildRunner(
+          interactAdapter: adapter,
+          hasTerminal: () => true,
+        ).run(['publish', '--input', ticketDir.path]);
+
+        verifyNever(
+          () => adapter.choose(
+            message: any(named: 'message'),
+            options: any(named: 'options'),
+          ),
+        );
+        expect(ticketDir.existsSync(), isTrue);
+      });
+
       test(
         '--no-delete-remote-branch keeps the branches when trashing',
         () async {

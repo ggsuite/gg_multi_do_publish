@@ -476,9 +476,23 @@ class DoPublishCommand extends DirCommand<void> {
     // A no-op run is not asked at all: the user expected a release, nothing
     // happened, and offering to trash the ticket would be a surprising side
     // effect of doing nothing.
-    final closeTicketWhenDone = isNoOpRun
-        ? false
-        : await _offerTicketCleanup(ticketName: path.basename(ticketDir.path));
+    //
+    // The answer is persisted in the runtime file, so a `--continue` after a
+    // failure resumes with the decision the user already made. A no-op run
+    // answers »keep« without recording it — that is the absence of a decision,
+    // not one, and a later real run must still get to ask.
+    final bool closeTicketWhenDone;
+    if (publishConfig.deleteTicket != null) {
+      closeTicketWhenDone = publishConfig.deleteTicket!;
+    } else if (isNoOpRun) {
+      closeTicketWhenDone = false;
+    } else {
+      closeTicketWhenDone = await _offerTicketCleanup(
+        ticketName: path.basename(ticketDir.path),
+      );
+      publishConfig = publishConfig.withDeleteTicket(closeTicketWhenDone);
+      await publishConfig.save(file: runtimeFile);
+    }
 
     final publishedPackages = <String, _PublishedPackageState>{};
     final confirmedPubDevVersions = <String>{};
@@ -709,10 +723,15 @@ class DoPublishCommand extends DirCommand<void> {
     }
 
     final index = await _interactAdapter.choose(
-      message: cAction('What should happen to the ticket when ready?'),
+      // The blank line separates the question from the publish log above it.
+      // The question is a heading, the options are what the user acts on. The
+      // command sits at the very end of its option, so wrapping it in cCmd
+      // resets no color that still has text to cover.
+      message: '\n${cH1('What should happen to the ticket when ready?')}',
       options: <String>[
-        'Move to .trash and delete the remote branches',
-        'Remove it manually with »gg do rm ticket $ticketName«',
+        cAction('Move to .trash and delete the remote branches'),
+        '${cAction('Remove it manually with ')}'
+            '${cCmd('»gg do rm ticket $ticketName«')}',
       ],
     );
     return index == 0;
