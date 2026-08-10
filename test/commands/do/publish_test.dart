@@ -23,7 +23,8 @@ import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
 import 'package:gg_multi_do_publish/src/commands/do/publish.dart';
 import 'package:gg_one/gg_one.dart' as gg;
-import 'package:gg_publish/gg_publish.dart' show PublishedVersion;
+import 'package:gg_publish/gg_publish.dart'
+    show PublishedVersion, VersionIncrement;
 import 'package:gg_status_printer/gg_status_printer.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as path;
@@ -89,6 +90,7 @@ class StubPlanner extends PublishPlanner {
   Future<RepoPublishPlan> configureRepo({
     required Directory repoDir,
     required String seedMessage,
+    gg.RepoPublishConfig? existing,
     bool mergeOnly = false,
   }) => _configurator.configureRepo(
     repoDir: repoDir,
@@ -4108,18 +4110,18 @@ void main() {
       );
     });
 
-    test('a full restore drops the repo-level .gg/gg-publish.json', () async {
-      // The gitignored runtime file survives `reset --hard`, but its step
-      // markers describe commits the rollback just removed.
-      final repoRuntime = File(path.join(dirA, '.gg', 'gg-publish.json'))
+    test('a full restore drops the repo-level publish state', () async {
+      // The gitignored state file survives `reset --hard`, but its step
+      // markers describe commits the rollback just removed. The answers
+      // survive — they are what the user chose, not what the run did.
+      final repoRuntime = gg.publishStateFile(Directory(dirA))
         ..createSync(recursive: true);
-      repoRuntime.writeAsStringSync('''
-{
-  "version_increment": "patch",
-  "merge_message": "m",
-  "done_steps": ["prepare_version"]
-}
-''');
+      repoRuntime.writeAsStringSync('{"doneSteps": ["prepare_version"]}');
+      final repoAnswers = gg.repoPublishConfigFile(Directory(dirA));
+      await gg.RepoPublishConfig(
+        mergeMessage: 'm',
+        versionIncrement: VersionIncrement.patch,
+      ).save(file: repoAnswers);
       stubPublishFails();
       stubHeadMoves('h0', 'h1');
       when(
@@ -4141,6 +4143,7 @@ void main() {
       );
 
       expect(repoRuntime.existsSync(), isFalse);
+      expect(repoAnswers.existsSync(), isTrue);
     });
 
     test('keeps all commits when the version was already bumped', () async {
@@ -5012,8 +5015,8 @@ void main() {
         ),
       ).thenAnswer(
         (_) async => RepoPublishPlan(
-          override: gg.RepoOverride(
-            versionIncrement: 'patch',
+          config: gg.RepoPublishConfig(
+            versionIncrement: VersionIncrement.patch,
             mergeMessage: 'reconfigured',
           ),
           baseline: Version(1, 0, 0),
@@ -5046,8 +5049,8 @@ void main() {
         ),
       ).thenAnswer(
         (_) async => RepoPublishPlan(
-          override: gg.RepoOverride(
-            versionIncrement: 'patch',
+          config: gg.RepoPublishConfig(
+            versionIncrement: VersionIncrement.patch,
             mergeMessage: 'Release msg',
           ),
           baseline: Version(1, 0, 0),
@@ -5477,6 +5480,40 @@ void main() {
       },
     );
 
+    test('an incomplete configuration is reported per repo', () async {
+      // Nobody can be asked and the recorded answers do not cover the run —
+      // the repo names itself and points at the command that fixes it.
+      runtimeFile.writeAsStringSync('{"merge_message":"m"}');
+      when(
+        () => mockConfigure.configureRepo(
+          repoDir: any(named: 'repoDir'),
+          seedMessage: any(named: 'seedMessage'),
+          mergeOnly: any(named: 'mergeOnly'),
+        ),
+      ).thenAnswer(
+        (_) async => RepoPublishPlan(
+          config: gg.RepoPublishConfig(mergeMessage: 'm'),
+          baseline: Version(1, 0, 0),
+        ),
+      );
+
+      await expectLater(
+        () => buildRunner(
+          hasTerminal: () => true,
+        ).run(['publish', '--input', ticketDir.path]),
+        throwsA(
+          isA<Exception>().having(
+            (e) => rmControls(e.toString()),
+            'message',
+            allOf(
+              contains('The publish configuration of A is incomplete'),
+              contains('gg do configure-publish'),
+            ),
+          ),
+        ),
+      );
+    });
+
     test('--config with --restart discards progress and proceeds', () async {
       runtimeFile.writeAsStringSync('''
 {
@@ -5539,8 +5576,8 @@ void main() {
         ),
       ).thenAnswer(
         (_) async => RepoPublishPlan(
-          override: gg.RepoOverride(
-            versionIncrement: 'patch',
+          config: gg.RepoPublishConfig(
+            versionIncrement: VersionIncrement.patch,
             mergeMessage: 'reconfigured',
           ),
           baseline: Version(1, 0, 0),
@@ -5857,8 +5894,8 @@ void main() {
         ),
       ).thenAnswer(
         (_) async => RepoPublishPlan(
-          override: gg.RepoOverride(
-            versionIncrement: 'minor',
+          config: gg.RepoPublishConfig(
+            versionIncrement: VersionIncrement.minor,
             mergeMessage: 'asked for B',
           ),
           baseline: Version(2, 0, 0),
@@ -6474,18 +6511,12 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      // The runtime file survives the failure and holds both markers —
-      // and gg_one's config loader accepts the skipped status.
-      final runtimeFile = File(
-        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-      );
-      expect(runtimeFile.existsSync(), isTrue);
-      final config = gg.PublishConfig.load(
-        configArg: runtimeFile.path,
-        fallbackDir: ticketDir.path,
-      );
-      expect(config.statusForRepo('A'), 'skipped');
-      expect(config.statusForRepo('B'), 'failed');
+      // Each repo's own state survives the failure and holds its marker.
+      String? statusOf(String repo) => gg.PublishState.tryLoad(
+        Directory(path.join(ticketDir.path, repo)),
+      )?.status;
+      expect(statusOf('A'), 'skipped');
+      expect(statusOf('B'), 'failed');
     });
 
     test('--continue re-evaluates a previously skipped repo', () async {
@@ -7531,17 +7562,12 @@ void main() {
         ),
       );
 
-      // The ticket file carries both outcomes, so --continue resumes at B.
-      final config =
-          jsonDecode(
-                File(
-                  path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-                ).readAsStringSync(),
-              )
-              as Map<String, dynamic>;
-      final repos = config['repos'] as Map<String, dynamic>;
-      expect((repos['A'] as Map<String, dynamic>)['status'], 'published');
-      expect((repos['B'] as Map<String, dynamic>)['status'], 'failed');
+      // Each repo records its own outcome, so --continue resumes at B.
+      String? statusOf(String repo) => gg.PublishState.tryLoad(
+        Directory(path.join(ticketDir.path, repo)),
+      )?.status;
+      expect(statusOf('A'), 'published');
+      expect(statusOf('B'), 'failed');
 
       // The reason is reported where the failure is recorded.
       expect(messages.any((m) => m.contains('✗ Publishing B failed')), isTrue);
@@ -7885,6 +7911,34 @@ DoPublishCommand makePublishCommand({
   gg.InteractAdapter? interactAdapter,
   gg.HasTerminal? hasTerminal,
 }) {
+  // The planner asks every question again now — a recorded answer is a
+  // pre-selected default, not a reason to skip. These tests drive the flow,
+  // not the prompts, so they run headless unless a test says otherwise: the
+  // recorded answers are then used as they are.
+  hasTerminal ??= () => false;
+  // The planner asks every publishing repo now, so an interactive run would
+  // open a real prompt in the test process. A test that cares about the
+  // questions passes its own configurator (and verifies against it); every
+  // other one gets this deterministic stand-in.
+  if (doConfigurePublishCommand == null) {
+    final mock = MockConfigurePublishCommand();
+    when(
+      () => mock.configureRepo(
+        repoDir: any(named: 'repoDir'),
+        seedMessage: any(named: 'seedMessage'),
+        mergeOnly: any(named: 'mergeOnly'),
+      ),
+    ).thenAnswer(
+      (_) async => RepoPublishPlan(
+        config: gg.RepoPublishConfig(
+          versionIncrement: VersionIncrement.patch,
+          mergeMessage: 'test merge',
+        ),
+        baseline: Version(1, 0, 0),
+      ),
+    );
+    doConfigurePublishCommand = mock;
+  }
   if (ggDoUpgradeDeps == null) {
     final mock = MockGgDoUpgradeDeps();
     when(
@@ -7949,20 +8003,18 @@ DoPublishCommand makePublishCommand({
     npmChecker: npmChecker,
     publishSkipCheck: publishSkipCheck,
     publishedVersion: publishedVersion,
-    publishPlanner: doConfigurePublishCommand == null
-        ? null
-        : StubPlanner(
-            doConfigurePublishCommand,
-            ggLog: ggLog,
-            publishSkipCheck: publishSkipCheck,
-            publishedVersion: publishedVersion,
-            readManifestVersion: readManifestVersion,
-            hasTerminal: hasTerminal,
-          ),
+    publishPlanner: StubPlanner(
+      doConfigurePublishCommand,
+      ggLog: ggLog,
+      publishSkipCheck: publishSkipCheck,
+      publishedVersion: publishedVersion,
+      readManifestVersion: readManifestVersion,
+      hasTerminal: hasTerminal,
+    ),
     ensureIgnored: ensureIgnored,
     ensureInRegistry: ensureInRegistry,
     ticketState: ticketState,
     interactAdapter: interactAdapter ?? MockInteractAdapter(),
-    hasTerminal: hasTerminal ?? () => false,
+    hasTerminal: hasTerminal,
   );
 }

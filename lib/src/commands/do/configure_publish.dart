@@ -71,11 +71,6 @@ class DoConfigurePublishCommand extends DirCommand<void> {
   /// Decides which repos need a release and asks their publish questions.
   final PublishPlanner _publishPlanner;
 
-  /// Returns the `.gg/gg-publish.json` file for [ticketDir] — the file
-  /// `gg do review` writes the answers to and `gg do publish` reads them from.
-  static File configFileFor(Directory ticketDir) =>
-      publishConfigFileFor(ticketDir);
-
   @override
   Future<void> get({required Directory directory, required GgLog ggLog}) async {
     await configure(
@@ -86,8 +81,9 @@ class DoConfigurePublishCommand extends DirCommand<void> {
     );
   }
 
-  /// Builds the publish configuration for the ticket containing [directory],
-  /// writes it to `<ticket>/.gg/gg-publish.json` and returns it.
+  /// Builds the publish configuration of every repository of the ticket
+  /// containing [directory], writes each to its own
+  /// `<repo>/.gg/publish_config.json` and returns them by repository name.
   ///
   /// [defaultMergeMessage] (typically from `-m`) is the default merge message:
   /// it pre-fills every repo's merge-message prompt and is the fallback when
@@ -97,11 +93,12 @@ class DoConfigurePublishCommand extends DirCommand<void> {
   /// [mergeOnly] configures a `gg do publish --merge-only` run: it releases
   /// nothing, so no version increment is asked for and none is stored.
   ///
-  /// Every question is asked afresh — that is what running this command means.
-  /// The answers of an existing configuration are therefore *not* reused; a
-  /// file still carrying the progress markers of an unfinished publish is the
-  /// one thing that stops the run, because rewriting it would discard them.
-  Future<gg.PublishConfig> configure({
+  /// Every question is asked afresh — that is what running this command
+  /// means. Existing answers come back as the pre-selected defaults, so a
+  /// choice made earlier stays correctable; a repository still carrying the
+  /// progress of an unfinished publish is the one thing that stops the run,
+  /// because rewriting its answers would strand the `--continue`.
+  Future<Map<String, gg.RepoPublishConfig>> configure({
     required Directory directory,
     required GgLog ggLog,
     String? defaultMergeMessage,
@@ -116,33 +113,30 @@ class DoConfigurePublishCommand extends DirCommand<void> {
 
     final ticketDir = Directory(ticketPath);
 
-    // Never clobber the progress of an unfinished publish — rewriting the
-    // file would silently discard the per-repo status markers, so a later
-    // `--continue` would re-publish repos that already released.
-    final existingFile = configFileFor(ticketDir);
-    if (existingFile.existsSync()) {
-      final existing = gg.PublishConfig.load(
-        configArg: existingFile.path,
-        fallbackDir: ticketDir.path,
-      );
-      if (existing.repos.values.any((r) => r.status != null)) {
-        throw Exception(
-          cError(
-            gg.unfinishedPublishMessage(
-              path: existingFile.path,
-              command: 'gg do publish',
-            ),
-          ),
-        );
-      }
-    }
-
     final subs = await _sortedProcessingList.get(
       directory: ticketDir,
       ggLog: ggLog,
     );
     if (subs.isEmpty) {
       ggLog(cWarn('⚠️ No repos in this ticket'));
+    }
+
+    // Never clobber the progress of an unfinished publish — rewriting the
+    // answers would leave the per-repo status markers pointing at a plan
+    // nobody chose, so a later `--continue` would re-publish repos that
+    // already released.
+    if (anyRepoHasStatus(
+      repoDirs: subs.map((node) => node.directory),
+      ticketDir: ticketDir,
+    )) {
+      throw Exception(
+        cError(
+          gg.unfinishedPublishMessage(
+            path: ticketDir.path,
+            command: 'gg do publish',
+          ),
+        ),
+      );
     }
 
     final plan = await _publishPlanner.plan(
@@ -159,11 +153,11 @@ class DoConfigurePublishCommand extends DirCommand<void> {
     // Whether the ticket is cleaned up is no longer a question: `do publish`
     // always moves the published repos to <root>/.trash and removes the
     // ticket folder, so nothing is asked and nothing is stored here.
-    await plan.config.save(file: configFileFor(ticketDir));
+    await plan.save();
     // Where the answers are stored is an implementation detail of the
     // publish — the user just answered the questions and does not need a
     // path back.
-    return plan.config;
+    return plan.configs;
   }
 
   /// Adds command line arguments.
