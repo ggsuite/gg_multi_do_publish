@@ -5,6 +5,7 @@
 ### Fixed
 
 - Various log and color fixes across the gg command output
+- Various fixes
 
 ## 2.4.1 - 2026-08-10
 

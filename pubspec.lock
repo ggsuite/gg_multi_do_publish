@@ -207,7 +207,7 @@ packages:
       path: "../gg_git"
       relative: true
     source: path
-    version: "4.1.0"
+    version: "4.1.1"
   gg_hash:
     dependency: transitive
     description:
@@ -269,21 +269,21 @@ packages:
       path: "../gg_merge"
       relative: true
     source: path
-    version: "3.2.0"
+    version: "3.2.1"
   gg_multi_commit:
     dependency: "direct main"
     description:
       path: "../gg_multi_commit"
       relative: true
     source: path
-    version: "2.3.0"
+    version: "2.3.1"
   gg_multi_core:
     dependency: "direct main"
     description:
       path: "../gg_multi_core"
       relative: true
     source: path
-    version: "2.3.0"
+    version: "2.3.1"
   gg_one:
     dependency: "direct main"
     description:
@@ -304,7 +304,7 @@ packages:
       path: "../gg_one_core"
       relative: true
     source: path
-    version: "2.3.1"
+    version: "2.3.2"
   gg_one_do_publish:
     dependency: "direct overridden"
     description:
@@ -318,7 +318,7 @@ packages:
       path: "../gg_one_merge"
       relative: true
     source: path
-    version: "2.3.1"
+    version: "2.3.2"
   gg_process:
     dependency: transitive
     description:
@@ -341,7 +341,7 @@ packages:
       path: "../gg_publish"
       relative: true
     source: path
-    version: "4.3.0"
+    version: "4.3.1"
   gg_status_printer:
     dependency: "direct main"
     description:
