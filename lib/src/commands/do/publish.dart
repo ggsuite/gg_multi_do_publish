@@ -26,8 +26,6 @@ import 'package:gg_multi_do_publish/src/backend/pub_dev_checker.dart';
 import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
-import 'package:gg_multi_do_publish/src/commands/do/configure_publish.dart'
-    show DoConfigurePublishCommand;
 
 /// Snapshot of a repository's state taken before its publish starts.
 class _RepoPublishSnapshot {
@@ -351,7 +349,9 @@ class DoPublishCommand extends DirCommand<void> {
     }
 
     final ticketDir = Directory(ticketPath);
-    final runtimeFile = DoConfigurePublishCommand.configFileFor(ticketDir);
+    // The ticket-wide half of the run state — currently only the
+    // delete-the-ticket answer, which belongs to no single repository.
+    final ticketStateFile = gg.publishStateFile(ticketDir);
 
     // Step 2: Get sorted repos.
     final subs = await _sortedProcessingList.get(
@@ -377,26 +377,50 @@ class DoPublishCommand extends DirCommand<void> {
     // This stays up front: the runtime file is the resume anchor, and a
     // leftover one carrying progress markers must be reported before anything
     // else happens. Only the *interactive* branch moves behind the checks.
-    final loaded = await _loadExistingPublishConfig(
+    await _loadExistingPublishConfig(
       ticketDir: ticketDir,
-      runtimeFile: runtimeFile,
+      subs: subs,
       configArg: configArg,
       continueRun: continueRun,
       restart: restart,
     );
-    gg.PublishConfig? loadedConfig = loaded.config;
-    final String configSourcePath = loaded.sourcePath;
 
-    // --restart discards not only the ticket-level config but also the
-    // repo-level step progress gg_one recorded in an earlier run.
+    // --restart discards the run state of every repository — the answers
+    // stay, they are what the user chose rather than what the run did. A
+    // legacy `gg-publish.json` goes with the state: it carries progress and
+    // answers in one, so leaving it would resurrect the very progress that
+    // was just discarded.
     if (restart) {
       for (final repo in subs) {
-        final repoRuntime = gg.DoConfigurePublish.configFileFor(repo.directory);
-        if (repoRuntime.existsSync()) {
-          repoRuntime.deleteSync();
+        for (final file in <File>[
+          gg.publishStateFile(repo.directory),
+          gg.legacyPublishConfigFile(repo.directory),
+        ]) {
+          if (file.existsSync()) {
+            file.deleteSync();
+          }
+        }
+      }
+      for (final file in <File>[
+        ticketStateFile,
+        legacyTicketPublishConfigFile(ticketDir),
+      ]) {
+        if (file.existsSync()) {
+          file.deleteSync();
         }
       }
     }
+
+    /// The recorded run state of [repoDir].
+    gg.PublishState stateOf(Directory repoDir) => loadTicketRepoPublishFiles(
+      repoDir: repoDir,
+      ticketDir: ticketDir,
+    ).state;
+
+    /// Records [status] for [repoDir] — the marker a `--continue` reads.
+    Future<void> recordStatus(Directory repoDir, String status) => stateOf(
+      repoDir,
+    ).withStatus(status).save(file: gg.publishStateFile(repoDir));
 
     // Step 4: The review gate and the ticket wide validation. The per-repo
     // `gg can publish` gate is NOT part of this — it runs inside
@@ -413,8 +437,7 @@ class DoPublishCommand extends DirCommand<void> {
     // repo on resume, so raw commits added after the failure are still caught.
     final resumingMidPublish =
         continueRun &&
-        ((loadedConfig?.repos.values.any((r) => r.status == 'published') ??
-                false) ||
+        (subs.any((repo) => stateOf(repo.directory).status == 'published') ||
             subs.any((repo) => repoHasPublishStepProgress(repo.directory)));
     if (!resumingMidPublish) {
       await _throwUnlessReviewed(ticketDir: ticketDir, ggLog: ggLog);
@@ -448,7 +471,6 @@ class DoPublishCommand extends DirCommand<void> {
       ticketDir: ticketDir,
       subs: subs,
       ggLog: ggLog,
-      config: loadedConfig,
       continueRun: continueRun,
       publishUnchanged: publishUnchanged,
       mergeOnly: isMergeOnly,
@@ -457,18 +479,14 @@ class DoPublishCommand extends DirCommand<void> {
           ? PublishPlanWording.merge
           : PublishPlanWording.publish,
     );
-    final gg.PublishConfig planned = plan.config;
-    gg.PublishConfig publishConfig = planned;
-
-    // The answers the pass collected are the resume anchor of this run.
-    if (plan.anyPublishes || loadedConfig != null) {
-      await planned.save(file: runtimeFile);
-    }
+    // The answers the pass collected are what the per-repo publishes read.
+    await plan.save();
 
     // A run that neither publishes anything nor finishes a partly published
     // ticket is a no-op: the ticket carries nothing but gg's own bookkeeping.
     final anyAlreadyPublished =
-        continueRun && planned.repos.values.any((r) => r.status == 'published');
+        continueRun &&
+        subs.any((repo) => stateOf(repo.directory).status == 'published');
     final isNoOpRun = !plan.anyPublishes && !anyAlreadyPublished;
 
     // Step 6: The last interactive question — what happens to the ticket once
@@ -482,17 +500,19 @@ class DoPublishCommand extends DirCommand<void> {
     // failure resumes with the decision the user already made. A no-op run
     // answers »keep« without recording it — that is the absence of a decision,
     // not one, and a later real run must still get to ask.
+    final ticketState = loadTicketPublishState(ticketDir);
     final bool closeTicketWhenDone;
-    if (publishConfig.deleteTicket != null) {
-      closeTicketWhenDone = publishConfig.deleteTicket!;
+    if (ticketState.deleteTicket != null) {
+      closeTicketWhenDone = ticketState.deleteTicket!;
     } else if (isNoOpRun) {
       closeTicketWhenDone = false;
     } else {
       closeTicketWhenDone = await _offerTicketCleanup(
         ticketName: path.basename(ticketDir.path),
       );
-      publishConfig = publishConfig.withDeleteTicket(closeTicketWhenDone);
-      await publishConfig.save(file: runtimeFile);
+      await ticketState
+          .copyWith(deleteTicket: closeTicketWhenDone)
+          .save(file: ticketStateFile);
     }
 
     final publishedPackages = <String, _PublishedPackageState>{};
@@ -512,7 +532,7 @@ class DoPublishCommand extends DirCommand<void> {
       final repoName = path.basename(repoDir.path);
 
       final alreadyPublished =
-          continueRun && publishConfig.statusForRepo(repoName) == 'published';
+          continueRun && stateOf(repoDir).status == 'published';
 
       // A repo without manual changes whose dependencies all stay inside
       // their published constraints needs no release. The decision is made
@@ -530,8 +550,7 @@ class DoPublishCommand extends DirCommand<void> {
         ggLog('\n${cH1(repoName)} already $_done — skipping.');
       } else if (skip) {
         // The planning pass already reported the verdict per repo.
-        publishConfig = publishConfig.withRepoStatus(repoName, 'skipped');
-        await publishConfig.save(file: runtimeFile);
+        await recordStatus(repoDir, 'skipped');
       } else {
         await _waitForPublishedDependenciesIfNeeded(
           currentRepo: repo,
@@ -550,8 +569,8 @@ class DoPublishCommand extends DirCommand<void> {
             repoDir: repoDir,
             repoName: repoName,
             refVersions: refVersions,
-            publishConfig: publishConfig,
-            configPath: configSourcePath,
+            config: plan.configs[repoName] ?? gg.RepoPublishConfig(),
+            channel: stateOf(repoDir).channel,
             resume: continueRun,
             pr: prArg,
             force: force,
@@ -564,8 +583,7 @@ class DoPublishCommand extends DirCommand<void> {
           // Record the failure so `--continue` resumes here, report why,
           // restore the repo towards its pre-publish state, then surface the
           // failure.
-          publishConfig = publishConfig.withRepoStatus(repoName, 'failed');
-          await publishConfig.save(file: runtimeFile);
+          await recordStatus(repoDir, 'failed');
           _logPublishFailure(repoName: repoName, error: e, ggLog: ggLog);
           await _restoreRepoStateOnFailure(
             snapshot: snapshot,
@@ -579,8 +597,7 @@ class DoPublishCommand extends DirCommand<void> {
         // below — so a transient failure there cannot lose the marker and
         // re-run this already-published repo on a later `--continue`.
         anythingProcessed = true;
-        publishConfig = publishConfig.withRepoStatus(repoName, 'published');
-        await publishConfig.save(file: runtimeFile);
+        await recordStatus(repoDir, 'published');
         taskLog(cDetail('✓ $repoName: $_done successfully.'));
 
         // The release is irreversible and complete — bring the repo back
@@ -656,14 +673,22 @@ class DoPublishCommand extends DirCommand<void> {
     // they are skipped — a summary line adds nothing and reads like a
     // failure.
 
-    // Step 7: All repos processed — the resume anchor is no longer needed.
-    if (runtimeFile.existsSync()) {
-      runtimeFile.deleteSync();
-      taskLog(
-        cDetail(
-          '✓ Removed ${path.basename(runtimeFile.path)} after the $_action.',
-        ),
-      );
+    // Step 7: All repos processed — the resume anchors are no longer needed.
+    // The per-repo files are removed by gg_one's publish; what is left here
+    // is the ticket-wide state and the state of repos this run skipped.
+    var removedAnyState = false;
+    for (final file in <File>[
+      ticketStateFile,
+      for (final repo in subs) gg.publishStateFile(repo.directory),
+      legacyTicketPublishConfigFile(ticketDir),
+    ]) {
+      if (file.existsSync()) {
+        file.deleteSync();
+        removedAnyState = true;
+      }
+    }
+    if (removedAnyState) {
+      taskLog(cDetail('✓ Removed the publish state after the $_action.'));
     }
 
     // Step 8: Re-bless the review state. Every commit this run added to the
@@ -750,25 +775,21 @@ class DoPublishCommand extends DirCommand<void> {
     ggLog(cCmd('  gg do rm ticket $ticketName'));
   }
 
-  /// Resolves the publish configuration for the ticket in [ticketDir] and
-  /// makes sure a runtime copy lives at [runtimeFile] (the resume anchor).
+  /// Validates the configuration sources of the ticket in [ticketDir] and
+  /// seeds the per-repo answers from an explicit `--config` file.
   ///
-  /// Precedence: on `--continue` the runtime file must already exist; else an
-  /// explicit `--config` file, then the runtime file, then the legacy
-  /// `<ticket>/.gg-publish.json`, and finally an interactive
-  /// `do configure-publish`. `--restart` skips the two implicit files so
-  /// the user is asked again. User-supplied `--config` / legacy files are only
-  /// read — the mutable runtime copy is what receives the progress markers.
-  /// [messageArg] (from `-m`) is forwarded to `do configure-publish` as the
-  /// default merge message and only matters when the config is written
-  /// interactively — it is ignored for `--config`, legacy and runtime files.
-  /// [config] is the resolved configuration; [sourcePath] is the file it came
-  /// from (the user's `--config`/legacy file, or the runtime copy) — used so a
-  /// missing-field error points at the file the user actually authored.
-  Future<({gg.PublishConfig? config, String sourcePath})>
-  _loadExistingPublishConfig({
+  /// Precedence: on `--continue` some repository must already record
+  /// progress; an explicit `--config` file is split per repository and
+  /// written as their answers; otherwise the per-repo
+  /// `publish_config.json` files (or a legacy leftover) supply them, and
+  /// whatever is missing is asked by the planning pass further down.
+  /// `--restart` discards the recorded progress so the questions are asked
+  /// again. A leftover progress marker of an unfinished run stops every
+  /// fresh source — overwriting it would strand the `--continue` meant to
+  /// finish that run.
+  Future<void> _loadExistingPublishConfig({
     required Directory ticketDir,
-    required File runtimeFile,
+    required List<Node> subs,
     required String? configArg,
     required bool continueRun,
     required bool restart,
@@ -777,79 +798,53 @@ class DoPublishCommand extends DirCommand<void> {
       throw Exception(cError(gg.continueConflictMessage));
     }
 
+    final repoDirs = subs.map((node) => node.directory);
+
     if (continueRun) {
-      if (!runtimeFile.existsSync()) {
+      // A run that failed before it touched a single repository — in the
+      // review gate, the push, or the ticket-wide checks — records no
+      // progress, and resuming it is simply a normal run. Refusing that
+      // would turn a harmless no-op into a dead end, so the answers a
+      // `gg do review` left behind are enough to let `--continue` through.
+      final hasSomething =
+          anyRepoHasStatus(repoDirs: repoDirs, ticketDir: ticketDir) ||
+          anyRepoHasAnswers(repoDirs: repoDirs, ticketDir: ticketDir) ||
+          subs.any((repo) => repoHasPublishStepProgress(repo.directory));
+      if (!hasSomething) {
         throw Exception(
           cError(
-            'Nothing to continue: ${runtimeFile.path} does not exist. Start a '
-            'normal "$_command" first.',
+            'Nothing to continue: ${path.basename(ticketDir.path)} has no '
+            'publish configuration and no recorded progress. Start a normal '
+            '"$_command" first.',
           ),
         );
       }
-      return (
-        config: gg.PublishConfig.load(
-          configArg: runtimeFile.path,
-          fallbackDir: ticketDir.path,
-        ),
-        sourcePath: runtimeFile.path,
-      );
-    }
-
-    if (restart && runtimeFile.existsSync()) {
-      // Explicit user choice: discard the previous config and progress.
-      runtimeFile.deleteSync();
+      return;
     }
 
     if (configArg != null) {
       // A fresh --config run must not clobber the progress markers of an
-      // unfinished publish (same guard as the implicit runtime-file path).
-      _throwOnLeftoverTicketProgress(
-        runtimeFile: runtimeFile,
-        ticketDir: ticketDir,
-      );
+      // unfinished publish (same guard as the implicit path below) — unless
+      // `--restart` says the user wants exactly that.
+      if (!restart) {
+        _throwOnLeftoverTicketProgress(ticketDir: ticketDir, subs: subs);
+      }
       final config = gg.PublishConfig.load(
         configArg: configArg,
         fallbackDir: ticketDir.path,
       );
-      await config.save(file: runtimeFile);
-      return (config: config, sourcePath: configArg);
-    }
-
-    if (!restart && runtimeFile.existsSync()) {
-      final config = gg.PublishConfig.load(
-        configArg: runtimeFile.path,
-        fallbackDir: ticketDir.path,
-      );
-      // A runtime file carrying progress markers is the leftover of an
-      // unfinished run — do not silently reuse it as plain config.
-      if (config.repos.values.any((r) => r.status != null)) {
-        throw Exception(
-          cError(
-            gg.unfinishedPublishMessage(
-              path: runtimeFile.path,
-              command: _command,
-            ),
-          ),
-        );
+      // The legacy shape is the documented headless entry point; it is split
+      // per repository here and never written in its own format again.
+      for (final repoDir in repoDirs) {
+        final split = config.legacySplit(path.basename(repoDir.path));
+        await split.config.save(file: gg.repoPublishConfigFile(repoDir));
       }
-      return (config: config, sourcePath: runtimeFile.path);
+      return;
     }
 
-    final legacyFile = File(path.join(ticketDir.path, '.gg-publish.json'));
-    if (!restart && legacyFile.existsSync()) {
-      final config = gg.PublishConfig.load(
-        configArg: legacyFile.path,
-        fallbackDir: ticketDir.path,
-      );
-      await config.save(file: runtimeFile);
-      return (config: config, sourcePath: legacyFile.path);
+    if (!restart) {
+      _throwOnLeftoverTicketProgress(ticketDir: ticketDir, subs: subs);
     }
-
-    // Only the interactive path is left. It runs later — after the ticket
-    // wide checks decided the run may proceed at all, and after the planning
-    // pass decided which repos actually need a release, so nobody answers a
-    // version question for a repo that is then skipped.
-    return (config: null, sourcePath: runtimeFile.path);
   }
 
   /// Throws when the *current* ticket state was not reviewed.
@@ -866,38 +861,26 @@ class DoPublishCommand extends DirCommand<void> {
     required GgLog ggLog,
   }) => _didReviewCommand.exec(directory: ticketDir, ggLog: ggLog);
 
-  /// Whether [runtimeFile] still carries per-repo progress markers of an
-  /// unfinished run.
+  /// Whether any repository of the ticket still carries the progress marker
+  /// of an unfinished run.
   bool _ticketHasLeftoverProgress({
-    required File runtimeFile,
     required Directory ticketDir,
-  }) {
-    if (!runtimeFile.existsSync()) {
-      return false;
-    }
-    final existing = gg.PublishConfig.load(
-      configArg: runtimeFile.path,
-      fallbackDir: ticketDir.path,
-    );
-    return existing.repos.values.any((r) => r.status != null);
-  }
+    required List<Node> subs,
+  }) => anyRepoHasStatus(
+    repoDirs: subs.map((node) => node.directory),
+    ticketDir: ticketDir,
+  );
 
-  /// Throws when [runtimeFile] still carries per-repo progress markers of an
-  /// unfinished run — a fresh config source must not clobber them.
+  /// Throws when any repository still carries the progress marker of an
+  /// unfinished run — a fresh config source must not clobber it.
   void _throwOnLeftoverTicketProgress({
-    required File runtimeFile,
     required Directory ticketDir,
+    required List<Node> subs,
   }) {
-    if (_ticketHasLeftoverProgress(
-      runtimeFile: runtimeFile,
-      ticketDir: ticketDir,
-    )) {
+    if (_ticketHasLeftoverProgress(ticketDir: ticketDir, subs: subs)) {
       throw Exception(
         cError(
-          gg.unfinishedPublishMessage(
-            path: runtimeFile.path,
-            command: _command,
-          ),
+          gg.unfinishedPublishMessage(path: ticketDir.path, command: _command),
         ),
       );
     }
@@ -910,8 +893,8 @@ class DoPublishCommand extends DirCommand<void> {
     required Directory repoDir,
     required String repoName,
     required Map<String, String> refVersions,
-    required gg.PublishConfig publishConfig,
-    required String configPath,
+    required gg.RepoPublishConfig config,
+    required String? channel,
     required bool resume,
     required bool? pr,
     required bool force,
@@ -1042,17 +1025,21 @@ class DoPublishCommand extends DirCommand<void> {
     }
 
     // The publish configuration is always resolved up front, so every repo
-    // has an explicit merge message and version increment here.
-    final resolved = publishConfig.forRepo(
-      repoName: repoName,
-      configPath: configPath,
-      // A merge-only run bumps no version, so a config written for it carries
-      // no increment — demanding one would reject the very file it wrote.
-      requireVersionIncrement: !mergeOnly,
-    );
-    final publishMessage = resolved.mergeMessage;
-    final publishVersionIncrement = resolved.versionIncrement;
-    final publishChannel = publishConfig.channelForRepo(repoName);
+    // has an explicit merge message and version increment here. A merge-only
+    // run bumps no version, so a config written for it carries no increment —
+    // demanding one would reject the very file it wrote.
+    final publishMessage = config.mergeMessage;
+    final publishVersionIncrement = config.versionIncrement?.name;
+    if (publishMessage == null ||
+        (!mergeOnly && publishVersionIncrement == null)) {
+      throw Exception(
+        cError(
+          'The publish configuration of $repoName is incomplete. Run '
+          '${cCmd('gg do configure-publish')} and try again.',
+        ),
+      );
+    }
+    final publishChannel = channel;
 
     // gg do publish; multi flow is non-interactive (no confirm prompt).
     // On --continue, gg_one resumes at the first step its repo-level
@@ -1632,13 +1619,14 @@ class DoPublishCommand extends DirCommand<void> {
     // Nothing irreversible happened — restore the full snapshot.
     await _runGit(<String>['reset', '--hard', s.head], repoDir: repoDir);
 
-    // gg_one's runtime .gg/gg-publish.json is gitignored and survives the
-    // reset — but its step markers describe commits that were just rolled
-    // back, so they must not seed a later resume. Drop the file; the
-    // keep-commits path above keeps it because there the steps stay real.
-    final repoRuntimeFile = gg.DoConfigurePublish.configFileFor(repoDir);
-    if (repoRuntimeFile.existsSync()) {
-      repoRuntimeFile.deleteSync();
+    // gg_one's .gg/publish_state.json is gitignored and survives the reset —
+    // but its step markers describe commits that were just rolled back, so
+    // they must not seed a later resume. Drop it; the keep-commits path above
+    // keeps it because there the steps stay real. The answers survive: they
+    // are what the user chose, not what the rolled-back run did.
+    final repoStateFile = gg.publishStateFile(repoDir);
+    if (repoStateFile.existsSync()) {
+      repoStateFile.deleteSync();
     }
 
     if (s.mainBranch != null &&

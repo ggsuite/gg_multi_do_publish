@@ -41,6 +41,7 @@ class _StubAdapter implements gg.InteractAdapter {
   Future<int> choose({
     required String message,
     required List<String> options,
+    int initialIndex = 0,
   }) async {
     capturedOptions.add(options);
     final index = _indices[_call % _indices.length];
@@ -80,6 +81,9 @@ void main() {
       tempDir.deleteSync(recursive: true);
     }
   });
+
+  Directory repoDir(String name) =>
+      Directory(path.join(ticketDir.path, name))..createSync(recursive: true);
 
   Node node(String name) => Node(
     name: name,
@@ -168,16 +172,7 @@ void main() {
         );
 
         expect(messages, contains('⚠️ No repos in this ticket'));
-        expect(config.repos, isEmpty);
-
-        final file = DoConfigurePublishCommand.configFileFor(emptyTicket);
-        expect(file.existsSync(), isTrue);
-        final reloaded = gg.PublishConfig.load(
-          configArg: file.path,
-          fallbackDir: emptyTicket.path,
-        );
-        expect(reloaded.deleteTicket, isNull);
-        expect(reloaded.repos, isEmpty);
+        expect(config, isEmpty);
       },
     );
 
@@ -194,16 +189,13 @@ void main() {
 
         await command.configure(directory: ticketDir, ggLog: ggLog);
 
-        final file = DoConfigurePublishCommand.configFileFor(ticketDir);
-        final cfg = gg.PublishConfig.load(
-          configArg: file.path,
-          fallbackDir: ticketDir.path,
-        );
-        expect(cfg.repos['A']!.versionIncrement, 'minor');
-        expect(cfg.repos['A']!.mergeMessage, 'Ticket desc');
-        expect(cfg.repos['B']!.versionIncrement, 'patch');
-        expect(cfg.repos['B']!.mergeMessage, 'Ticket desc');
-        expect(cfg.deleteTicket, isNull);
+        // Each repo carries its own answers, in its own file.
+        final a = gg.RepoPublishConfig.tryLoad(repoDir('A'))!;
+        final b = gg.RepoPublishConfig.tryLoad(repoDir('B'))!;
+        expect(a.versionIncrement, VersionIncrement.minor);
+        expect(a.mergeMessage, 'Ticket desc');
+        expect(b.versionIncrement, VersionIncrement.patch);
+        expect(b.mergeMessage, 'Ticket desc');
         // Both repos were shown the merge-message editor with the description.
         expect(capturedInitials, ['Ticket desc', 'Ticket desc']);
       },
@@ -224,9 +216,9 @@ void main() {
         mergeOnly: true,
       );
 
-      expect(config.repos['A']!.versionIncrement, isNull);
-      expect(config.repos['B']!.versionIncrement, isNull);
-      expect(config.repos['A']!.mergeMessage, 'Publish A');
+      expect(config['A']!.versionIncrement, isNull);
+      expect(config['B']!.versionIncrement, isNull);
+      expect(config['A']!.mergeMessage, 'Publish A');
     });
 
     test('the CLI offers --merge-only too', () async {
@@ -240,12 +232,8 @@ void main() {
         '--merge-only',
       ]);
 
-      final file = DoConfigurePublishCommand.configFileFor(ticketDir);
-      final cfg = gg.PublishConfig.load(
-        configArg: file.path,
-        fallbackDir: ticketDir.path,
-      );
-      expect(cfg.repos['A']!.versionIncrement, isNull);
+      final cfg = gg.RepoPublishConfig.tryLoad(repoDir('A'))!;
+      expect(cfg.versionIncrement, isNull);
     });
 
     test(
@@ -259,17 +247,13 @@ void main() {
           ..addCommand(command);
         await runner.run(['configure-publish', '--input', ticketDir.path]);
 
-        final file = DoConfigurePublishCommand.configFileFor(ticketDir);
-        final cfg = gg.PublishConfig.load(
-          configArg: file.path,
-          fallbackDir: ticketDir.path,
-        );
-        expect(cfg.repos['A']!.versionIncrement, 'major');
+        final cfg = gg.RepoPublishConfig.tryLoad(repoDir('A'))!;
+        expect(cfg.versionIncrement, VersionIncrement.major);
         // No ticket.json and an empty edit → generic non-empty fallback
         // message.
-        expect(cfg.repos['A']!.mergeMessage, 'Publish A');
+        expect(cfg.mergeMessage, 'Publish A');
         // The delete-ticket question is gone: `do publish` always trashes.
-        expect(cfg.deleteTicket, isNull);
+        expect(gg.PublishState.tryLoad(ticketDir)?.deleteTicket, isNull);
       },
     );
 
@@ -286,12 +270,8 @@ void main() {
 
         await command.configure(directory: ticketDir, ggLog: ggLog);
 
-        final file = DoConfigurePublishCommand.configFileFor(ticketDir);
-        final cfg = gg.PublishConfig.load(
-          configArg: file.path,
-          fallbackDir: ticketDir.path,
-        );
-        expect(cfg.repos['A']!.mergeMessage, 'Ticket desc');
+        final cfg = gg.RepoPublishConfig.tryLoad(repoDir('A'))!;
+        expect(cfg.mergeMessage, 'Ticket desc');
       },
     );
 
@@ -407,24 +387,16 @@ void main() {
         defaultMergeMessage: 'The change',
       );
 
-      expect(config.repos.keys, ['A']);
+      // Only A was asked; B gets a file but no answers.
+      expect(config['A']!.mergeMessage, 'The change');
+      expect(config['B']!.mergeMessage, isNull);
       expect(capturedInitials, ['The change']);
       expect(messages.join('\n'), contains('Not published. Nothing changed.'));
     });
 
     test('refuses to clobber the progress of an unfinished publish', () async {
-      final file = DoConfigurePublishCommand.configFileFor(ticketDir)
-        ..createSync(recursive: true);
-      file.writeAsStringSync('''
-{
-  "repos": {
-    "A": {
-      "version_increment": "patch", "merge_message": "m",
-      "status": "published"
-    }
-  }
-}
-''');
+      final stateFile = gg.publishStateFile(repoDir('A'));
+      await gg.PublishState(status: 'published').save(file: stateFile);
 
       final command = makeCommand(repos: [node('A')]);
       await expectLater(
@@ -438,15 +410,14 @@ void main() {
         ),
       );
       // The progress markers survive untouched.
-      expect(file.readAsStringSync(), contains('"published"'));
+      expect(stateFile.readAsStringSync(), contains('"published"'));
     });
 
     test('overwrites a progress-free config file without complaint', () async {
-      final file = DoConfigurePublishCommand.configFileFor(ticketDir)
-        ..createSync(recursive: true);
-      file.writeAsStringSync(
-        '{"version_increment":"patch","merge_message":"old"}',
-      );
+      await gg.RepoPublishConfig(
+        versionIncrement: VersionIncrement.patch,
+        mergeMessage: 'old',
+      ).save(file: gg.repoPublishConfigFile(repoDir('A')));
 
       final command = makeCommand(repos: [node('A')]);
       final config = await command.configure(
@@ -455,7 +426,7 @@ void main() {
         defaultMergeMessage: 'new',
       );
 
-      expect(config.repos['A']!.mergeMessage, 'new');
+      expect(config['A']!.mergeMessage, 'new');
     });
 
     group('merge-message default from -m', () {
@@ -469,12 +440,8 @@ void main() {
         // No ticket.json; -m pre-fills the prompt and becomes the message.
         expect(capturedInitials, ['CLI msg']);
 
-        final file = DoConfigurePublishCommand.configFileFor(ticketDir);
-        final cfg = gg.PublishConfig.load(
-          configArg: file.path,
-          fallbackDir: ticketDir.path,
-        );
-        expect(cfg.repos['A']!.mergeMessage, 'CLI msg');
+        final cfg = gg.RepoPublishConfig.tryLoad(repoDir('A'))!;
+        expect(cfg.mergeMessage, 'CLI msg');
       });
 
       test('-m takes precedence over the ticket description', () async {
@@ -516,12 +483,8 @@ void main() {
           'CLI seed',
         ]);
 
-        final file = DoConfigurePublishCommand.configFileFor(ticketDir);
-        final cfg = gg.PublishConfig.load(
-          configArg: file.path,
-          fallbackDir: ticketDir.path,
-        );
-        expect(cfg.repos['A']!.mergeMessage, 'CLI seed');
+        final cfg = gg.RepoPublishConfig.tryLoad(repoDir('A'))!;
+        expect(cfg.mergeMessage, 'CLI seed');
       });
     });
   });
