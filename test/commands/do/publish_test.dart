@@ -4970,6 +4970,45 @@ void main() {
       );
     });
 
+    test('--continue resumes a run that failed before any repo', () async {
+      // The regression this guards: a publish that died in the review gate,
+      // the push or the ticket-wide checks records no progress at all. The
+      // answers `gg do review` left behind are enough — resuming is then
+      // simply a normal run, and refusing it would be a dead end.
+      await gg.RepoPublishConfig(
+        versionIncrement: VersionIncrement.patch,
+        mergeMessage: 'test merge',
+      ).save(file: gg.repoPublishConfigFile(repoNode('A').directory));
+      runtimeFile.deleteSync();
+
+      await buildRunner().run([
+        'publish',
+        '--input',
+        ticketDir.path,
+        '--continue',
+      ]);
+
+      verify(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: 'test merge',
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: 'patch',
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          // The run itself resumes — it just has nothing done to skip.
+          resume: true,
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+    });
+
     test(
       '--continue skips already-published repos and resumes the rest',
       () async {

@@ -800,15 +800,21 @@ class DoPublishCommand extends DirCommand<void> {
     final repoDirs = subs.map((node) => node.directory);
 
     if (continueRun) {
-      final hasProgress =
+      // A run that failed before it touched a single repository — in the
+      // review gate, the push, or the ticket-wide checks — records no
+      // progress, and resuming it is simply a normal run. Refusing that
+      // would turn a harmless no-op into a dead end, so the answers a
+      // `gg do review` left behind are enough to let `--continue` through.
+      final hasSomething =
           anyRepoHasStatus(repoDirs: repoDirs, ticketDir: ticketDir) ||
+          anyRepoHasAnswers(repoDirs: repoDirs, ticketDir: ticketDir) ||
           subs.any((repo) => repoHasPublishStepProgress(repo.directory));
-      if (!hasProgress) {
+      if (!hasSomething) {
         throw Exception(
           cError(
-            'Nothing to continue: no repository of '
-            '${path.basename(ticketDir.path)} records publish progress. '
-            'Start a normal "$_command" first.',
+            'Nothing to continue: ${path.basename(ticketDir.path)} has no '
+            'publish configuration and no recorded progress. Start a normal '
+            '"$_command" first.',
           ),
         );
       }
