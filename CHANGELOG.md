@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The publish state is kept per repository (`.gg/publish_state.json`); the ticket-wide `gg-publish.json` is only read for migration
+
 ## 3.0.0 - 2026-08-10
 
 ## 2.4.2 - 2026-08-10
