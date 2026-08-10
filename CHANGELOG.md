@@ -5,6 +5,13 @@
 ### Changed
 
 - The publish state is kept per repository (`.gg/publish_state.json`); the ticket-wide `gg-publish.json` is only read for migration
+## 3.0.1 - 2026-08-10
+
+### Changed
+
+- `do publish` turns gg_one's new dependency upgrade off (`upgrade: false`): the
+ticket-wide flow already upgrades every repo in dependency order
+- Make sure »dart pub upgrade --tighten --major-versions« is called before publishing
 
 ## 3.0.0 - 2026-08-10
 

@@ -576,6 +576,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -844,6 +845,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -1036,6 +1038,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
@@ -1099,6 +1102,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).called(1);
@@ -1208,6 +1212,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -1276,6 +1281,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(1);
@@ -1298,6 +1304,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(1);
@@ -1399,6 +1406,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -1462,6 +1470,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(1);
@@ -1570,6 +1579,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -1821,6 +1831,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).thenAnswer((invocation) {
@@ -2037,6 +2048,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -2214,6 +2226,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -2387,6 +2400,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
@@ -2557,6 +2571,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -2713,6 +2728,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -3104,6 +3120,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
@@ -3266,6 +3283,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -3450,6 +3468,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -3642,6 +3661,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -3779,6 +3799,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenThrow(Exception('publish failed'));
@@ -4105,6 +4126,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       );
@@ -4821,6 +4843,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -4921,6 +4944,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).called(1);
@@ -4993,6 +5017,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).called(1);
@@ -5095,6 +5120,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(1);
@@ -5223,6 +5249,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).called(1);
@@ -5279,6 +5306,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(1);
@@ -5306,6 +5334,7 @@ void main() {
           pr: false,
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(1);
@@ -5330,6 +5359,7 @@ void main() {
             pr: null,
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).called(1);
@@ -5474,6 +5504,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ).called(1);
@@ -5552,6 +5583,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(1);
@@ -5708,6 +5740,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -5940,6 +5973,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(1);
@@ -5996,6 +6030,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
@@ -6300,6 +6335,7 @@ void main() {
             pr: any(named: 'pr'),
             mergeOnly: any(named: 'mergeOnly'),
             force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
             options: any(named: 'options'),
           ),
         ]);
@@ -6479,6 +6515,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
@@ -6502,6 +6539,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenThrow(Exception('registry down'));
@@ -6568,6 +6606,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).captured.cast<Directory>();
@@ -6699,6 +6738,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
@@ -6800,6 +6840,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: false,
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(2);
@@ -6825,6 +6866,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: false,
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(2);
@@ -6902,6 +6944,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: true,
           force: true,
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).called(2);
@@ -7023,6 +7066,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenThrow(Exception('merge failed'));
@@ -7201,6 +7245,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: any(named: 'options'),
         ),
       ).thenAnswer((i) async => calls.add('publish:${repoOf(i)}'));
@@ -7319,6 +7364,7 @@ void main() {
           pr: any(named: 'pr'),
           mergeOnly: any(named: 'mergeOnly'),
           force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
           options: captureAny(named: 'options'),
         ),
       ).captured.cast<Map<String, dynamic>>();
@@ -7608,6 +7654,31 @@ void main() {
       expect(calls, isNot(contains('gate:B')));
       expect(calls, isNot(contains('push:B')));
       expect(calls, isNot(contains('publish:B')));
+    });
+
+    test('tells gg_one not to upgrade again', () async {
+      // This loop upgraded every repo itself, in dependency order — gg_one
+      // repeating it per repo would only resolve the same repo twice.
+      await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+      verify(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          upgrade: false,
+          options: any(named: 'options'),
+        ),
+      ).called(2);
     });
 
     test('a failing can commit fails the repo like a rejected gate', () async {
