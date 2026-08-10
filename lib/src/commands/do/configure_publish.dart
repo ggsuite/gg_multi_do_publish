@@ -143,6 +143,9 @@ class DoConfigurePublishCommand extends DirCommand<void> {
       ticketDir: ticketDir,
       subs: subs,
       ggLog: ggLog,
+      // Asking is the whole point of this command — recorded answers come
+      // back as the pre-selected defaults, never as a reason to skip.
+      reconfigure: true,
       mergeOnly: mergeOnly,
       defaultMergeMessage: defaultMergeMessage,
       wording: mergeOnly
