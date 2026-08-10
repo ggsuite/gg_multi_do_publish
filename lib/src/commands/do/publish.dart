@@ -1069,6 +1069,11 @@ class DoPublishCommand extends DirCommand<void> {
       pr: pr,
       mergeOnly: mergeOnly,
       force: force,
+      // The ticket-wide flow upgraded this repo itself a few steps above —
+      // in dependency order, so »--tighten« resolved against the sibling
+      // versions this run published earlier. gg_one's own upgrade would
+      // resolve the very same repo a second time without changing anything.
+      upgrade: false,
       options: <String, dynamic>{gg.panaOption: repoPana},
     );
   }

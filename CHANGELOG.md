@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `do publish` turns gg_one's new dependency upgrade off (`upgrade: false`): the
+ticket-wide flow already upgrades every repo in dependency order
+- Make sure »dart pub upgrade --tighten --major-versions« is called before publishing
+
 ## 3.0.0 - 2026-08-10
 
 ## 2.4.2 - 2026-08-10
