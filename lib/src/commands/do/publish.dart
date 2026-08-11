@@ -16,6 +16,7 @@ import 'package:gg_localize_refs/gg_localize_refs.dart';
 import 'package:gg_log/gg_log.dart';
 import 'package:gg_publish/gg_publish.dart' show PublishedVersion;
 import 'package:gg_one/gg_one.dart' as gg;
+import 'package:gg_process/gg_process.dart';
 import 'package:gg_status_printer/gg_status_printer.dart';
 import 'package:path/path.dart' as path;
 
@@ -1750,7 +1751,7 @@ class DoPublishCommand extends DirCommand<void> {
     final Map<String, String>? envOverride =
         projectType == gg.ProjectType.typescript
         ? <String, String>{
-            ...Platform.environment,
+            ...ggPlatform.environment,
             'PNPM_CONFIG_BLOCK_EXOTIC_SUBDEPS': 'false',
           }
         : null;
