@@ -5,6 +5,7 @@
 // found in the LICENSE file in the root of this package.
 
 import 'package:gg_git/gg_git.dart';
+
 import 'dart:io';
 
 import 'package:gg_args/gg_args.dart';
@@ -418,9 +419,10 @@ class DoPublishCommand extends DirCommand<void> {
     ).state;
 
     /// Records [status] for [repoDir] — the marker a `--continue` reads.
-    Future<void> recordStatus(Directory repoDir, String status) => stateOf(
-      repoDir,
-    ).withStatus(status).save(file: gg.publishStateFile(repoDir));
+    Future<void> recordStatus(Directory repoDir, String status) =>
+        stateOf(repoDir)
+            .withStatus(status)
+            .save(file: gg.publishStateFile(repoDir));
 
     // Step 4: The review gate and the ticket wide validation. The per-repo
     // `gg can publish` gate is NOT part of this — it runs inside

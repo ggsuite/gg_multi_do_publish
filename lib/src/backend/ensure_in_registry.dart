@@ -32,11 +32,10 @@ class EnsureInRegistry {
   EnsureInRegistry({
     required GgLog ggLog,
     IsInRegistry? isInRegistry,
-    LanguageCatalog? catalog,
+    this._catalog,
     ReadLineFromStdIn? readLineFromStdIn,
     gg.HasTerminal? hasTerminal,
   }) : _isInRegistry = isInRegistry ?? IsInRegistry(ggLog: ggLog),
-       _catalog = catalog,
        _readLineFromStdIn = readLineFromStdIn ?? stdin.readLineSync,
        _hasTerminal = hasTerminal ?? gg.defaultHasTerminal;
 
