@@ -11,11 +11,11 @@ dependencies:
   gg_console_colors: ^2.3.1
   gg_git: ^4.1.2
   gg_lang: ^0.5.1
-  gg_local_package_dependencies: ^3.0.1
+  gg_local_package_dependencies: ^4.0.0
   gg_localize_refs: ^4.2.4
   gg_log: ^1.0.7
-  gg_multi_commit: ^3.1.1
-  gg_multi_core: ^3.1.1
+  gg_multi_commit: ^4.0.0
+  gg_multi_core: ^4.0.0
   gg_one: ^14.2.1
   gg_process: ^1.1.7
   gg_publish: ^4.3.3
