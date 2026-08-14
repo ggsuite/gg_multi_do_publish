@@ -1,5 +1,5 @@
 // @license
-// Copyright (c) 2025 Göran Hegenberg. All Rights Reserved.
+// Copyright (c) ggsuite
 //
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
@@ -179,9 +179,8 @@ void main() {
     test(
       'writes per-repo increment + message using the ticket description',
       () async {
-        File(
-          path.join(ticketDir.path, ticketJsonFileName),
-        ).writeAsStringSync('{"description": "Ticket desc"}');
+        File(path.join(ticketDir.path, ticketJsonFileName))
+            .writeAsStringSync('{"description": "Ticket desc"}');
         final command = makeCommand(
           repos: [node('A'), node('B')],
           increments: [1, 0], // A -> minor, B -> patch
@@ -260,9 +259,8 @@ void main() {
     test(
       'falls back to the ticket description when the edit is empty',
       () async {
-        File(
-          path.join(ticketDir.path, ticketJsonFileName),
-        ).writeAsStringSync('{"description": "Ticket desc"}');
+        File(path.join(ticketDir.path, ticketJsonFileName))
+            .writeAsStringSync('{"description": "Ticket desc"}');
         final command = makeCommand(
           repos: [node('A')],
           editMessage: (_) async => '   ', // user cleared the message
@@ -291,9 +289,8 @@ void main() {
         // The feature branch lags behind the registry: main carries the
         // released version, so pubspec.yaml is stale until the next publish.
         // The preview must show what the publish will really bump from.
-        File(
-          path.join(ticketDir.path, 'A', 'pubspec.yaml'),
-        ).writeAsStringSync('name: a\nversion: 7.0.1\n');
+        File(path.join(ticketDir.path, 'A', 'pubspec.yaml'))
+            .writeAsStringSync('name: a\nversion: 7.0.1\n');
 
         final adapter = _StubAdapter([0]);
         final command = makeCommand(
@@ -330,9 +327,8 @@ void main() {
       });
 
       test('empty default when ticket.json is not a JSON object', () async {
-        File(
-          path.join(ticketDir.path, ticketJsonFileName),
-        ).writeAsStringSync('[]');
+        File(path.join(ticketDir.path, ticketJsonFileName))
+            .writeAsStringSync('[]');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(directory: ticketDir, ggLog: ggLog);
         expect(capturedInitials, ['']);
@@ -341,18 +337,16 @@ void main() {
       test('empty default when ticket.json is malformed JSON', () async {
         // A hand-edited / truncated ticket.json must not crash
         // configure-publish.
-        File(
-          path.join(ticketDir.path, ticketJsonFileName),
-        ).writeAsStringSync('{"description":');
+        File(path.join(ticketDir.path, ticketJsonFileName))
+            .writeAsStringSync('{"description":');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(directory: ticketDir, ggLog: ggLog);
         expect(capturedInitials, ['']);
       });
 
       test('empty default when the description is blank', () async {
-        File(
-          path.join(ticketDir.path, ticketJsonFileName),
-        ).writeAsStringSync('{"description": "   "}');
+        File(path.join(ticketDir.path, ticketJsonFileName))
+            .writeAsStringSync('{"description": "   "}');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(directory: ticketDir, ggLog: ggLog);
         expect(capturedInitials, ['']);
@@ -445,9 +439,8 @@ void main() {
       });
 
       test('-m takes precedence over the ticket description', () async {
-        File(
-          path.join(ticketDir.path, ticketJsonFileName),
-        ).writeAsStringSync('{"description": "Ticket desc"}');
+        File(path.join(ticketDir.path, ticketJsonFileName))
+            .writeAsStringSync('{"description": "Ticket desc"}');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(
           directory: ticketDir,
@@ -459,9 +452,8 @@ void main() {
       });
 
       test('a blank -m falls back to the ticket description', () async {
-        File(
-          path.join(ticketDir.path, ticketJsonFileName),
-        ).writeAsStringSync('{"description": "Ticket desc"}');
+        File(path.join(ticketDir.path, ticketJsonFileName))
+            .writeAsStringSync('{"description": "Ticket desc"}');
         final command = makeCommand(repos: [node('A')]);
         await command.configure(
           directory: ticketDir,

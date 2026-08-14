@@ -1,11 +1,11 @@
 // @license
-// Copyright (c) 2019 - 2025 Dr. Gabriel Gatzsche. All Rights
-// Reserved.
+// Copyright (c) ggsuite
 //
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
 
 import 'package:gg_git/gg_git.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -168,25 +168,22 @@ void main() {
     ticketDir = Directory(path.join(ticketsDir.path, 'TICKPB'))..createSync();
     Directory(path.join(ticketDir.path, 'A')).createSync();
     Directory(path.join(ticketDir.path, 'B')).createSync();
-    File(
-      path.join(ticketDir.path, 'A', 'pubspec.yaml'),
-    ).writeAsStringSync('name: A\n');
+    File(path.join(ticketDir.path, 'A', 'pubspec.yaml'))
+        .writeAsStringSync('name: A\n');
     // B is a Flutter package to cover the Flutter switch in refresh.
-    File(
-      path.join(ticketDir.path, 'B', 'pubspec.yaml'),
-    ).writeAsStringSync('name: B\nflutter:\n');
+    File(path.join(ticketDir.path, 'B', 'pubspec.yaml'))
+        .writeAsStringSync('name: B\nflutter:\n');
     // A ready-made runtime publish config so the tests exercise `do publish`
     // non-interactively — it reuses .gg/gg-publish.json when present instead
     // of invoking the interactive `do configure-publish`.
     Directory(path.join(ticketDir.path, '.gg')).createSync();
-    File(path.join(ticketDir.path, '.gg', 'gg-publish.json')).writeAsStringSync(
-      '''
+    File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+        .writeAsStringSync('''
 {
   "version_increment": "patch",
   "merge_message": "test merge"
 }
-''',
-    );
+''');
   });
 
   tearDown(() {
@@ -463,9 +460,8 @@ void main() {
     test('publishes all repos, restores their workspace state and keeps '
         'the ticket', () async {
       // The VS Code workspace file of the ticket must survive the run.
-      File(
-        path.join(ticketDir.path, 'TICKPB.code-workspace'),
-      ).writeAsStringSync('{"folders": []}');
+      File(path.join(ticketDir.path, 'TICKPB.code-workspace'))
+          .writeAsStringSync('{"folders": []}');
       final mockGgDoPublish = MockGgDoPublish();
       final mockSystemCommit = MockGgSystemCommit();
       final mockGgDoPush = MockGgDoPush();
@@ -581,9 +577,8 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
 
       when(
         () => mockGetRefVersion.get(
@@ -734,12 +729,10 @@ void main() {
     test('waits on npm for a published TypeScript dependency', () async {
       // Make repo A a TypeScript project; B (Dart) depends on A.
       File(path.join(ticketDir.path, 'A', 'pubspec.yaml')).deleteSync();
-      File(
-        path.join(ticketDir.path, 'A', 'package.json'),
-      ).writeAsStringSync('{"name": "A", "version": "1.0.0"}');
-      File(
-        path.join(ticketDir.path, 'A', 'tsconfig.json'),
-      ).writeAsStringSync('{}');
+      File(path.join(ticketDir.path, 'A', 'package.json'))
+          .writeAsStringSync('{"name": "A", "version": "1.0.0"}');
+      File(path.join(ticketDir.path, 'A', 'tsconfig.json'))
+          .writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
       final mockSystemCommit = MockGgSystemCommit();
@@ -849,9 +842,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       when(
         () => mockGetRefVersion.get(
           directory: any(named: 'directory'),
@@ -943,9 +935,8 @@ void main() {
         // A per-repo override in the runtime config drives the merge
         // message and version increment gg_one receives (no
         // interactive editor anymore).
-        File(
-          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-        ).writeAsStringSync('''
+        File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+            .writeAsStringSync('''
 {
   "repos": {
     "A": { "version_increment": "minor", "merge_message": "per-repo msg" }
@@ -1042,9 +1033,8 @@ void main() {
             options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
-        when(
-          () => mockGetVersion.get(directory: any(named: 'directory')),
-        ).thenAnswer((_) async => '1.0.0');
+        when(() => mockGetVersion.get(directory: any(named: 'directory')))
+            .thenAnswer((_) async => '1.0.0');
         when(
           () => mockGetRefVersion.get(
             directory: any(named: 'directory'),
@@ -1112,9 +1102,8 @@ void main() {
     test('forwards the release channel to gg do publish', () async {
       // Top-level channel: rc applies to repos without an override; a per-repo
       // channel override wins for that repo.
-      File(
-        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-      ).writeAsStringSync('''
+      File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+          .writeAsStringSync('''
 {
   "version_increment": "minor",
   "merge_message": "msg",
@@ -1216,9 +1205,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       when(
         () => mockGetRefVersion.get(
           directory: any(named: 'directory'),
@@ -1312,9 +1300,8 @@ void main() {
 
     test('falls back to the top-level merge message + increment', () async {
       // No per-repo override: forRepo falls back to the top-level defaults.
-      File(
-        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-      ).writeAsStringSync('''
+      File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+          .writeAsStringSync('''
 {
   "version_increment": "major",
   "merge_message": "top-level msg"
@@ -1410,9 +1397,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       when(
         () => mockGetRefVersion.get(
           directory: any(named: 'directory'),
@@ -1583,9 +1569,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       when(
         () => mockGetRefVersion.get(
           directory: any(named: 'directory'),
@@ -1690,9 +1675,8 @@ void main() {
         ],
       );
 
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       when(
         () => mockGetRefVersion.get(
           directory: any(named: 'directory'),
@@ -1842,9 +1826,8 @@ void main() {
           return Future.value();
         });
 
-        when(
-          () => mockGetVersion.get(directory: any(named: 'directory')),
-        ).thenAnswer((_) async => '1.0.0');
+        when(() => mockGetVersion.get(directory: any(named: 'directory')))
+            .thenAnswer((_) async => '1.0.0');
         when(
           () => mockGetRefVersion.get(
             directory: any(named: 'directory'),
@@ -2053,9 +2036,8 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       when(
         () => mockGetRefVersion.get(
           directory: any(named: 'directory'),
@@ -2169,9 +2151,8 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenThrow(Exception('version read failed'));
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenThrow(Exception('version read failed'));
 
       when(
         () => mockGetRefVersion.get(
@@ -2333,12 +2314,10 @@ void main() {
           ),
         ).thenAnswer((_) async {});
 
-        when(
-          () => mockGetVersion.get(directory: aDir),
-        ).thenAnswer((_) async => '1.2.3');
-        when(
-          () => mockGetVersion.get(directory: bDir),
-        ).thenAnswer((_) async => '0.0.1');
+        when(() => mockGetVersion.get(directory: aDir))
+            .thenAnswer((_) async => '1.2.3');
+        when(() => mockGetVersion.get(directory: bDir))
+            .thenAnswer((_) async => '0.0.1');
 
         // General stub first; later (bDir, 'A') stub wins (mocktail).
         when(
@@ -2348,9 +2327,8 @@ void main() {
           ),
         ).thenAnswer((_) async => null);
 
-        when(
-          () => mockGetRefVersion.get(directory: bDir, ref: 'A'),
-        ).thenAnswer((_) async => '^any');
+        when(() => mockGetRefVersion.get(directory: bDir, ref: 'A'))
+            .thenAnswer((_) async => '^any');
 
         when(
           () => mockSetRefVersion.get(
@@ -2509,12 +2487,10 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      when(
-        () => mockGetVersion.get(directory: aDir),
-      ).thenAnswer((_) async => '2.0.0');
-      when(
-        () => mockGetVersion.get(directory: bDir),
-      ).thenAnswer((_) async => '0.1.0');
+      when(() => mockGetVersion.get(directory: aDir))
+          .thenAnswer((_) async => '2.0.0');
+      when(() => mockGetVersion.get(directory: bDir))
+          .thenAnswer((_) async => '0.1.0');
 
       when(
         () => mockGetRefVersion.get(
@@ -2522,9 +2498,8 @@ void main() {
           ref: any(named: 'ref'),
         ),
       ).thenAnswer((_) async => null);
-      when(
-        () => mockGetRefVersion.get(directory: bDir, ref: 'A'),
-      ).thenAnswer((_) async => '^any');
+      when(() => mockGetRefVersion.get(directory: bDir, ref: 'A'))
+          .thenAnswer((_) async => '^any');
 
       when(
         () =>
@@ -2732,9 +2707,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       when(
         () => mockGetRefVersion.get(
           directory: any(named: 'directory'),
@@ -2921,29 +2895,26 @@ void main() {
       // gg_one step progress, so the upgrade step is skipped and the
       // Dart refresh of _changeRefsToPubDev runs instead.
       Directory(path.join(ticketDir.path, '.gg')).createSync(recursive: true);
-      File(
-        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-      ).writeAsStringSync(
-        jsonEncode({
-          'version_increment': 'patch',
-          'merge_message': 'test merge',
-          'repos': {
-            'A': {'status': 'failed'},
-          },
-        }),
-      );
-      Directory(
-        path.join(ticketDir.path, 'A', '.gg'),
-      ).createSync(recursive: true);
-      File(
-        path.join(ticketDir.path, 'A', '.gg', 'gg-publish.json'),
-      ).writeAsStringSync(
-        jsonEncode({
-          'version_increment': 'patch',
-          'merge_message': 'test merge',
-          'done_steps': ['prepare_version'],
-        }),
-      );
+      File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+          .writeAsStringSync(
+            jsonEncode({
+              'version_increment': 'patch',
+              'merge_message': 'test merge',
+              'repos': {
+                'A': {'status': 'failed'},
+              },
+            }),
+          );
+      Directory(path.join(ticketDir.path, 'A', '.gg'))
+          .createSync(recursive: true);
+      File(path.join(ticketDir.path, 'A', '.gg', 'gg-publish.json'))
+          .writeAsStringSync(
+            jsonEncode({
+              'version_increment': 'patch',
+              'merge_message': 'test merge',
+              'done_steps': ['prepare_version'],
+            }),
+          );
 
       final runner = CommandRunner<void>('test', 'do publish ticket')
         ..addCommand(
@@ -2997,12 +2968,10 @@ void main() {
       () async {
         // Swap pubspec for package.json+tsconfig so A becomes typescript.
         File(path.join(ticketDir.path, 'A', 'pubspec.yaml')).deleteSync();
-        File(
-          path.join(ticketDir.path, 'A', 'package.json'),
-        ).writeAsStringSync(jsonEncode(<String, dynamic>{'name': 'A'}));
-        File(
-          path.join(ticketDir.path, 'A', 'tsconfig.json'),
-        ).writeAsStringSync('{}');
+        File(path.join(ticketDir.path, 'A', 'package.json'))
+            .writeAsStringSync(jsonEncode(<String, dynamic>{'name': 'A'}));
+        File(path.join(ticketDir.path, 'A', 'tsconfig.json'))
+            .writeAsStringSync('{}');
 
         final mockGgDoPublish = MockGgDoPublish();
         final mockSystemCommit = MockGgSystemCommit();
@@ -3124,9 +3093,8 @@ void main() {
             options: any(named: 'options'),
           ),
         ).thenAnswer((_) async {});
-        when(
-          () => mockGetVersion.get(directory: any(named: 'directory')),
-        ).thenAnswer((_) async => null);
+        when(() => mockGetVersion.get(directory: any(named: 'directory')))
+            .thenAnswer((_) async => null);
 
         final runner = CommandRunner<void>('test', 'do publish ticket')
           ..addCommand(
@@ -3287,9 +3255,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => null);
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => null);
 
       final runner = CommandRunner<void>('test', 'do publish ticket')
         ..addCommand(
@@ -3335,12 +3302,10 @@ void main() {
         'the upgrade step, not by a duplicate refresh', () async {
       // Keep pubspec.yaml AND add package.json + tsconfig -> A is a bridge:
       // node_modules refresh via npm, pubspec.lock via »do upgrade deps«.
-      File(
-        path.join(ticketDir.path, 'A', 'package.json'),
-      ).writeAsStringSync(jsonEncode(<String, dynamic>{'name': 'A'}));
-      File(
-        path.join(ticketDir.path, 'A', 'tsconfig.json'),
-      ).writeAsStringSync('{}');
+      File(path.join(ticketDir.path, 'A', 'package.json'))
+          .writeAsStringSync(jsonEncode(<String, dynamic>{'name': 'A'}));
+      File(path.join(ticketDir.path, 'A', 'tsconfig.json'))
+          .writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
       final mockSystemCommit = MockGgSystemCommit();
@@ -3472,9 +3437,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => null);
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => null);
 
       final runner = CommandRunner<void>('test', 'do publish ticket')
         ..addCommand(
@@ -3530,12 +3494,10 @@ void main() {
         'progress — the path where the upgrade step is skipped', () async {
       // Keep pubspec.yaml AND add package.json + tsconfig -> A is a bridge:
       // node_modules refresh via npm, pubspec.lock via »do upgrade deps«.
-      File(
-        path.join(ticketDir.path, 'A', 'package.json'),
-      ).writeAsStringSync(jsonEncode(<String, dynamic>{'name': 'A'}));
-      File(
-        path.join(ticketDir.path, 'A', 'tsconfig.json'),
-      ).writeAsStringSync('{}');
+      File(path.join(ticketDir.path, 'A', 'package.json'))
+          .writeAsStringSync(jsonEncode(<String, dynamic>{'name': 'A'}));
+      File(path.join(ticketDir.path, 'A', 'tsconfig.json'))
+          .writeAsStringSync('{}');
 
       final mockGgDoPublish = MockGgDoPublish();
       final mockSystemCommit = MockGgSystemCommit();
@@ -3665,9 +3627,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => null);
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => null);
 
       final runner = CommandRunner<void>('test', 'do publish ticket')
         ..addCommand(
@@ -3693,29 +3654,26 @@ void main() {
       // Give the run resumable progress so the upgrade step is skipped
       // and the full refresh (incl. the Dart side) runs instead.
       Directory(path.join(ticketDir.path, '.gg')).createSync(recursive: true);
-      File(
-        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-      ).writeAsStringSync(
-        jsonEncode({
-          'version_increment': 'patch',
-          'merge_message': 'test merge',
-          'repos': {
-            'A': {'status': 'failed'},
-          },
-        }),
-      );
-      Directory(
-        path.join(ticketDir.path, 'A', '.gg'),
-      ).createSync(recursive: true);
-      File(
-        path.join(ticketDir.path, 'A', '.gg', 'gg-publish.json'),
-      ).writeAsStringSync(
-        jsonEncode({
-          'version_increment': 'patch',
-          'merge_message': 'test merge',
-          'done_steps': ['prepare_version'],
-        }),
-      );
+      File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+          .writeAsStringSync(
+            jsonEncode({
+              'version_increment': 'patch',
+              'merge_message': 'test merge',
+              'repos': {
+                'A': {'status': 'failed'},
+              },
+            }),
+          );
+      Directory(path.join(ticketDir.path, 'A', '.gg'))
+          .createSync(recursive: true);
+      File(path.join(ticketDir.path, 'A', '.gg', 'gg-publish.json'))
+          .writeAsStringSync(
+            jsonEncode({
+              'version_increment': 'patch',
+              'merge_message': 'test merge',
+              'done_steps': ['prepare_version'],
+            }),
+          );
 
       await runner.run(['publish', '--input', ticketDir.path, '--continue']);
 
@@ -3892,9 +3850,8 @@ void main() {
           ggLog: any(named: 'ggLog'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       _stubPubUpgrade(m);
 
       // Baseline git behaviour: clean repo on the feature branch with an
@@ -4029,15 +3986,13 @@ void main() {
         ),
       );
 
-      verify(
-        () => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA),
-      ).called(1);
+      verify(() => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA))
+          .called(1);
       verify(
         () => m('git', ['branch', '-f', 'main', 'm0'], workingDirectory: dirA),
       ).called(1);
-      verify(
-        () => m('git', ['tag', '-d', 'v1.1.0'], workingDirectory: dirA),
-      ).called(1);
+      verify(() => m('git', ['tag', '-d', 'v1.1.0'], workingDirectory: dirA))
+          .called(1);
       expect(
         messages.any(
           (msg) => msg.contains('Restored the state before the publish in A'),
@@ -4094,9 +4049,8 @@ void main() {
       );
 
       // The ref commit is thrown away — full restore, not cleanup restore.
-      verify(
-        () => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA),
-      ).called(1);
+      verify(() => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA))
+          .called(1);
       expect(
         messages.any(
           (msg) => msg.contains('Restored the state before the publish in A'),
@@ -4186,9 +4140,8 @@ void main() {
       // The snapshot sees 1.0.0, the restore sees the bumped 1.1.0 — the
       // registry may already carry the release, so nothing is reset.
       var versionCalls = 0;
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => versionCalls++ == 0 ? '1.0.0' : '1.1.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => versionCalls++ == 0 ? '1.0.0' : '1.1.0');
 
       await expectLater(
         () async => buildRunner().run([
@@ -4251,9 +4204,8 @@ void main() {
           '',
         ),
       );
-      when(
-        () => m('git', ['checkout', 'TICKPB'], workingDirectory: dirA),
-      ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
+      when(() => m('git', ['checkout', 'TICKPB'], workingDirectory: dirA))
+          .thenAnswer((_) async => ProcessResult(0, 0, '', ''));
 
       await expectLater(
         () async => buildRunner().run([
@@ -4265,9 +4217,8 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      verify(
-        () => m('git', ['checkout', 'TICKPB'], workingDirectory: dirA),
-      ).called(1);
+      verify(() => m('git', ['checkout', 'TICKPB'], workingDirectory: dirA))
+          .called(1);
       verifyNever(
         () => m(
           'git',
@@ -4339,9 +4290,8 @@ void main() {
           'gg-multi snapshot',
         ], workingDirectory: dirA),
       ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
-      when(
-        () => m('git', ['rev-parse', 'stash@{0}'], workingDirectory: dirA),
-      ).thenAnswer((_) async => ProcessResult(0, 0, 'stashsha', ''));
+      when(() => m('git', ['rev-parse', 'stash@{0}'], workingDirectory: dirA))
+          .thenAnswer((_) async => ProcessResult(0, 0, 'stashsha', ''));
       when(
         () => m('git', [
           'stash',
@@ -4443,9 +4393,8 @@ void main() {
       );
 
       // Full restore ran; master did not move (m0 both times) → no branch -f.
-      verify(
-        () => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA),
-      ).called(1);
+      verify(() => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA))
+          .called(1);
       verifyNever(
         () => m(
           'git',
@@ -4477,9 +4426,8 @@ void main() {
           'refs/heads/master',
         ], workingDirectory: any(named: 'workingDirectory')),
       ).thenAnswer((_) async => ProcessResult(0, 1, '', ''));
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenThrow(Exception('no version'));
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenThrow(Exception('no version'));
       when(
         () => m('git', [
           'reset',
@@ -4498,9 +4446,8 @@ void main() {
         throwsA(isA<Exception>()),
       );
 
-      verify(
-        () => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA),
-      ).called(1);
+      verify(() => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA))
+          .called(1);
       // No default branch → neither main nor master is queried on the remote.
       // (The feature branch is still queried, so this is scoped to main/master.)
       verifyNever(
@@ -4540,9 +4487,8 @@ void main() {
           'gg-multi snapshot',
         ], workingDirectory: dirA),
       ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
-      when(
-        () => m('git', ['rev-parse', 'stash@{0}'], workingDirectory: dirA),
-      ).thenAnswer((_) async => ProcessResult(0, 0, 'stashsha', ''));
+      when(() => m('git', ['rev-parse', 'stash@{0}'], workingDirectory: dirA))
+          .thenAnswer((_) async => ProcessResult(0, 0, 'stashsha', ''));
       when(
         () => m('git', [
           'stash',
@@ -4598,9 +4544,8 @@ void main() {
       // so the bump is uncommitted (shows in `git status`). That is
       // recoverable — nothing reached the registry — so restore fully.
       var versionCalls = 0;
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => versionCalls++ == 0 ? '1.0.0' : '1.1.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => versionCalls++ == 0 ? '1.0.0' : '1.1.0');
       // Clean at snapshot time, dirty (the half-bump) at restore time.
       var statusCalls = 0;
       when(
@@ -4631,9 +4576,8 @@ void main() {
       );
 
       // The half-bump did not count as irreversible → full restore.
-      verify(
-        () => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA),
-      ).called(1);
+      verify(() => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA))
+          .called(1);
       expect(
         messages.any((msg) => msg.contains('all commits were kept')),
         isFalse,
@@ -4734,9 +4678,8 @@ void main() {
       );
 
       // Full restore ran; the failed ls-remote did not force cleanup mode.
-      verify(
-        () => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA),
-      ).called(1);
+      verify(() => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA))
+          .called(1);
       expect(
         messages.any((msg) => msg.contains('already received the release')),
         isFalse,
@@ -4847,9 +4790,8 @@ void main() {
           options: any(named: 'options'),
         ),
       ).thenAnswer((_) async {});
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
       when(
         () => mockGetRefVersion.get(
           directory: any(named: 'directory'),
@@ -5087,9 +5029,8 @@ void main() {
         ),
       );
 
-      await buildRunner(
-        hasTerminal: () => true,
-      ).run(['publish', '--input', ticketDir.path, '--restart']);
+      await buildRunner(hasTerminal: () => true)
+          .run(['publish', '--input', ticketDir.path, '--restart']);
 
       // Asked per repo now — and only for the repos that really publish.
       verify(
@@ -5121,9 +5062,8 @@ void main() {
         ),
       );
 
-      await buildRunner(
-        hasTerminal: () => true,
-      ).run(['publish', '--input', ticketDir.path, '-m', 'Release msg']);
+      await buildRunner(hasTerminal: () => true)
+          .run(['publish', '--input', ticketDir.path, '-m', 'Release msg']);
 
       // -m becomes the seed of every per-repo prompt.
       verify(
@@ -5568,9 +5508,9 @@ void main() {
       );
 
       await expectLater(
-        () => buildRunner(
-          hasTerminal: () => true,
-        ).run(['publish', '--input', ticketDir.path]),
+        () =>
+            buildRunner(hasTerminal: () => true)
+                .run(['publish', '--input', ticketDir.path]),
         throwsA(
           isA<Exception>().having(
             (e) => rmControls(e.toString()),
@@ -5655,9 +5595,8 @@ void main() {
         ),
       );
 
-      await buildRunner(
-        hasTerminal: () => true,
-      ).run(['publish', '--input', ticketDir.path, '--restart']);
+      await buildRunner(hasTerminal: () => true)
+          .run(['publish', '--input', ticketDir.path, '--restart']);
 
       // Stale gg_one step progress must not seed the reconfigured run.
       expect(repoRuntime.existsSync(), isFalse);
@@ -5784,9 +5723,8 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
 
       when(
         () => mockGetRefVersion.get(
@@ -5885,14 +5823,13 @@ void main() {
         // asked and no baseline travels along — the prediction has to fetch
         // the published version itself. B must then see A's *next* version,
         // not its current one.
-        File(
-          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-        ).writeAsStringSync(
-          jsonEncode({
-            'version_increment': 'minor',
-            'merge_message': 'test merge',
-          }),
-        );
+        File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+            .writeAsStringSync(
+              jsonEncode({
+                'version_increment': 'minor',
+                'merge_message': 'test merge',
+              }),
+            );
         stubSkipCheck(<String>{});
 
         final publishedVersion = MockPublishedVersion();
@@ -5903,9 +5840,8 @@ void main() {
           ),
         ).thenAnswer((_) async => Version(1, 2, 3));
 
-        await buildRunner(
-          publishedVersion: publishedVersion,
-        ).run(['publish', '--input', ticketDir.path]);
+        await buildRunner(publishedVersion: publishedVersion)
+            .run(['publish', '--input', ticketDir.path]);
 
         // 1.2.3 + minor = 1.3.0 — the version B is judged against.
         final captured = verify(
@@ -5922,9 +5858,8 @@ void main() {
       // A repo needs a release, the config answers nothing for it and stdin
       // is no terminal — a headless run must say what to do instead of
       // hanging on a prompt nobody can answer.
-      File(
-        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-      ).writeAsStringSync(jsonEncode({'repos': <String, dynamic>{}}));
+      File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+          .writeAsStringSync(jsonEncode({'repos': <String, dynamic>{}}));
       stubSkipCheck({'A'});
 
       await expectLater(
@@ -5946,15 +5881,14 @@ void main() {
     test('asks only for the repos the configuration does not cover', () async {
       // The config answers A but says nothing about B — and A is skipped
       // anyway, so exactly one question is asked, for B.
-      File(
-        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-      ).writeAsStringSync(
-        jsonEncode({
-          'repos': {
-            'A': {'version_increment': 'patch', 'merge_message': 'a msg'},
-          },
-        }),
-      );
+      File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+          .writeAsStringSync(
+            jsonEncode({
+              'repos': {
+                'A': {'version_increment': 'patch', 'merge_message': 'a msg'},
+              },
+            }),
+          );
       stubSkipCheck({'A'});
 
       final configure = MockConfigurePublishCommand();
@@ -6119,9 +6053,8 @@ void main() {
       () async {
         stubSkipCheck({'A'});
         const overrides = 'dependency_overrides:\n  A:\n    path: ../A\n';
-        File(
-          path.join(ticketDir.path, 'B', 'pubspec_overrides.yaml'),
-        ).writeAsStringSync(overrides);
+        File(path.join(ticketDir.path, 'B', 'pubspec_overrides.yaml'))
+            .writeAsStringSync(overrides);
 
         await buildRunner().run([
           'publish',
@@ -6142,9 +6075,8 @@ void main() {
 
         // The overrides file is back and the backup is consumed.
         expect(
-          File(
-            path.join(ticketDir.path, 'B', 'pubspec_overrides.yaml'),
-          ).readAsStringSync(),
+          File(path.join(ticketDir.path, 'B', 'pubspec_overrides.yaml'))
+              .readAsStringSync(),
           overrides,
         );
         expect(
@@ -6216,9 +6148,8 @@ void main() {
         ),
       ).thenThrow(Exception('no git'));
 
-      await buildRunner(
-        ticketState: ticketState,
-      ).run(['publish', '--input', ticketDir.path]);
+      await buildRunner(ticketState: ticketState)
+          .run(['publish', '--input', ticketDir.path]);
 
       expect(
         messages.join('\n'),
@@ -6238,9 +6169,8 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      await buildRunner(
-        ticketState: ticketState,
-      ).run(['publish', '--input', ticketDir.path]);
+      await buildRunner(ticketState: ticketState)
+          .run(['publish', '--input', ticketDir.path]);
 
       verify(
         () => ticketState.writeSuccess(
@@ -6257,9 +6187,8 @@ void main() {
         // one that reaches the cleanup offer. A run in which nothing happened
         // is never asked whether the ticket may go to the trash.
         stubSkipCheck({'A'});
-        File(
-          path.join(ticketDir.path, 'TICKPB.code-workspace'),
-        ).writeAsStringSync('{"folders": []}');
+        File(path.join(ticketDir.path, 'TICKPB.code-workspace'))
+            .writeAsStringSync('{"folders": []}');
         when(
           () => mockProcessRunner('git', [
             'push',
@@ -6329,9 +6258,8 @@ void main() {
       test('also appears after a run that actually published', () async {
         // Nothing skips — both repos go through the full publish.
         stubSkipCheck(<String>{});
-        File(
-          path.join(ticketDir.path, 'ticket.json'),
-        ).writeAsStringSync('{"issue_id":"TICKPB"}');
+        File(path.join(ticketDir.path, 'ticket.json'))
+            .writeAsStringSync('{"issue_id":"TICKPB"}');
         when(
           () => mockProcessRunner('git', [
             'push',
@@ -6460,9 +6388,8 @@ void main() {
         // A run that failed after the question left `delete_ticket` behind.
         // The resume must act on it instead of asking a second time.
         stubSkipCheck({'A'});
-        File(
-          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-        ).writeAsStringSync('''
+        File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+            .writeAsStringSync('''
 {
   "version_increment": "patch",
   "merge_message": "test merge",
@@ -6589,9 +6516,9 @@ void main() {
       );
 
       // Each repo's own state survives the failure and holds its marker.
-      String? statusOf(String repo) => gg.PublishState.tryLoad(
-        Directory(path.join(ticketDir.path, repo)),
-      )?.status;
+      String? statusOf(String repo) =>
+          gg.PublishState.tryLoad(Directory(path.join(ticketDir.path, repo)))
+              ?.status;
       expect(statusOf('A'), 'skipped');
       expect(statusOf('B'), 'failed');
     });
@@ -6600,9 +6527,8 @@ void main() {
       // A previous run skipped A and published B, then the user added a
       // manual commit to A. The resume must publish A instead of trusting
       // the stale marker.
-      File(
-        path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-      ).writeAsStringSync('''
+      File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+          .writeAsStringSync('''
 {
   "version_increment": "patch",
   "merge_message": "test merge",
@@ -6782,9 +6708,8 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
 
       when(
         () => mockGetRefVersion.get(
@@ -6827,9 +6752,8 @@ void main() {
 
     /// Writes a `pubspec_overrides.yaml` with [content] into repo [name].
     void writeOverrides(String name, String content) {
-      File(
-        path.join(ticketDir.path, name, 'pubspec_overrides.yaml'),
-      ).writeAsStringSync(content);
+      File(path.join(ticketDir.path, name, 'pubspec_overrides.yaml'))
+          .writeAsStringSync(content);
     }
 
     /// Builds a plain publish command — merge mode comes from --merge-only.
@@ -7007,9 +6931,8 @@ void main() {
       // gg_localize_refs redirects pnpm-managed TypeScript deps through the
       // overrides of pnpm-workspace.yaml — a link: entry is a working-copy
       // redirection exactly like a Dart path: override.
-      File(
-        path.join(ticketDir.path, 'B', 'pnpm-workspace.yaml'),
-      ).writeAsStringSync('overrides:\n  A: link:../A\n');
+      File(path.join(ticketDir.path, 'B', 'pnpm-workspace.yaml'))
+          .writeAsStringSync('overrides:\n  A: link:../A\n');
 
       await expectLater(
         () => buildRunner().run(['publish', '--input', ticketDir.path]),
@@ -7026,11 +6949,10 @@ void main() {
     test(
       'tolerates a pnpm-workspace.yaml holding only git overrides',
       () async {
-        File(
-          path.join(ticketDir.path, 'B', 'pnpm-workspace.yaml'),
-        ).writeAsStringSync(
-          'overrides:\n  A: git+ssh://git@github.com/u/a.git#feat\n',
-        );
+        File(path.join(ticketDir.path, 'B', 'pnpm-workspace.yaml'))
+            .writeAsStringSync(
+              'overrides:\n  A: git+ssh://git@github.com/u/a.git#feat\n',
+            );
 
         await buildRunner().run(['publish', '--input', ticketDir.path]);
 
@@ -7289,9 +7211,8 @@ void main() {
         ),
       ).thenAnswer((i) async => calls.add('publish:${repoOf(i)}'));
 
-      when(
-        () => mockGetVersion.get(directory: any(named: 'directory')),
-      ).thenAnswer((_) async => '1.0.0');
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
 
       when(
         () => mockGetRefVersion.get(
@@ -7485,9 +7406,8 @@ void main() {
         required String pubspecVersion,
         required String packageJsonVersion,
       }) {
-        File(
-          path.join(ticketDir.path, 'A', 'pubspec.yaml'),
-        ).writeAsStringSync('name: A\nversion: $pubspecVersion\n');
+        File(path.join(ticketDir.path, 'A', 'pubspec.yaml'))
+            .writeAsStringSync('name: A\nversion: $pubspecVersion\n');
         File(path.join(ticketDir.path, 'A', 'package.json')).writeAsStringSync(
           '{"name": "@org/a", "version": "$packageJsonVersion"}',
         );
@@ -7546,9 +7466,8 @@ void main() {
       test('still records a name for a repo without a registry', () async {
         // »publish_to: none« leaves no registry, but the version still has to
         // reach the dependents' constraints.
-        File(
-          path.join(ticketDir.path, 'A', 'pubspec.yaml'),
-        ).writeAsStringSync('name: A\nversion: 1.0.1\npublish_to: none\n');
+        File(path.join(ticketDir.path, 'A', 'pubspec.yaml'))
+            .writeAsStringSync('name: A\nversion: 1.0.1\npublish_to: none\n');
 
         await buildRunner().run(['publish', '--input', ticketDir.path]);
 
@@ -7648,9 +7567,9 @@ void main() {
       );
 
       // Each repo records its own outcome, so --continue resumes at B.
-      String? statusOf(String repo) => gg.PublishState.tryLoad(
-        Directory(path.join(ticketDir.path, repo)),
-      )?.status;
+      String? statusOf(String repo) =>
+          gg.PublishState.tryLoad(Directory(path.join(ticketDir.path, repo)))
+              ?.status;
       expect(statusOf('A'), 'published');
       expect(statusOf('B'), 'failed');
 
@@ -7754,29 +7673,26 @@ void main() {
       /// Marks the run as resumable and gives repo [name] gg_one step
       /// progress, as a repo that failed mid-publish would have.
       void writeProgress({required String repoWithSteps}) {
-        File(
-          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-        ).writeAsStringSync(
-          jsonEncode({
-            'version_increment': 'patch',
-            'merge_message': 'test merge',
-            'repos': {
-              'B': {'status': 'failed'},
-            },
-          }),
-        );
-        Directory(
-          path.join(ticketDir.path, repoWithSteps, '.gg'),
-        ).createSync(recursive: true);
-        File(
-          path.join(ticketDir.path, repoWithSteps, '.gg', 'gg-publish.json'),
-        ).writeAsStringSync(
-          jsonEncode({
-            'version_increment': 'patch',
-            'merge_message': 'test merge',
-            'done_steps': ['prepare_version'],
-          }),
-        );
+        File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+            .writeAsStringSync(
+              jsonEncode({
+                'version_increment': 'patch',
+                'merge_message': 'test merge',
+                'repos': {
+                  'B': {'status': 'failed'},
+                },
+              }),
+            );
+        Directory(path.join(ticketDir.path, repoWithSteps, '.gg'))
+            .createSync(recursive: true);
+        File(path.join(ticketDir.path, repoWithSteps, '.gg', 'gg-publish.json'))
+            .writeAsStringSync(
+              jsonEncode({
+                'version_increment': 'patch',
+                'merge_message': 'test merge',
+                'done_steps': ['prepare_version'],
+              }),
+            );
       }
 
       test(
@@ -7827,17 +7743,16 @@ void main() {
       );
 
       test('re-checks a repo that made no publish progress', () async {
-        File(
-          path.join(ticketDir.path, '.gg', 'gg-publish.json'),
-        ).writeAsStringSync(
-          jsonEncode({
-            'version_increment': 'patch',
-            'merge_message': 'test merge',
-            'repos': {
-              'A': {'status': 'published'},
-            },
-          }),
-        );
+        File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
+            .writeAsStringSync(
+              jsonEncode({
+                'version_increment': 'patch',
+                'merge_message': 'test merge',
+                'repos': {
+                  'A': {'status': 'published'},
+                },
+              }),
+            );
 
         await buildRunner().run([
           'publish',

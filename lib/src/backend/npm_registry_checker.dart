@@ -1,5 +1,5 @@
 // @license
-// Copyright (c) 2025 Göran Hegenberg. All Rights Reserved.
+// Copyright (c) ggsuite
 //
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
@@ -18,17 +18,15 @@ import 'package:gg_multi_do_publish/src/backend/pub_dev_checker.dart'
 /// A thin gg_multi-side adapter — registry interaction and the poll/wait logic
 /// live in gg_lang.
 class NpmRegistryChecker {
-  /// Creates a new checker. Inject [waiter] in tests; production resolves a
+  /// Creates a new checker. Inject [_waiter] in tests; production resolves a
   /// [RegistryWaiter] over the npm registry from the language catalog.
   NpmRegistryChecker({
-    RegistryWaiter? waiter,
-    LanguageCatalog? catalog,
-    Future<void> Function(Duration duration)? delay,
+    this._waiter,
+    this._catalog,
+    this._delay,
     this.pollInterval = const Duration(seconds: 5),
     this.timeout = const Duration(minutes: 5),
-  }) : _waiter = waiter,
-       _catalog = catalog,
-       _delay = delay;
+  });
 
   final RegistryWaiter? _waiter;
   final LanguageCatalog? _catalog;

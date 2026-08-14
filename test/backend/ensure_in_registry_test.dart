@@ -1,5 +1,5 @@
 // @license
-// Copyright (c) 2019 - 2025 Dr. Gabriel Gatzsche. All Rights Reserved.
+// Copyright (c) ggsuite
 //
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
@@ -77,9 +77,8 @@ void main() {
     coloredMessages.clear();
     isInRegistry = MockIsInRegistry();
     d = Directory.systemTemp.createTempSync('ensure_in_registry_test_');
-    File(
-      path.join(d.path, 'pubspec.yaml'),
-    ).writeAsStringSync('name: test_pkg\nversion: 1.0.0\n');
+    File(path.join(d.path, 'pubspec.yaml'))
+        .writeAsStringSync('name: test_pkg\nversion: 1.0.0\n');
   });
 
   // ...........................................................................
@@ -115,9 +114,8 @@ void main() {
           'and continues once it is in the registry', () async {
         mockInRegistry([false, true]);
 
-        await ensureInRegistry(
-          answers: [''],
-        ).ensure(directory: d, ggLog: ggLog);
+        await ensureInRegistry(answers: [''])
+            .ensure(directory: d, ggLog: ggLog);
 
         final log = messages.join('\n');
         expect(
@@ -146,9 +144,8 @@ void main() {
       test('shows the shell commands in blue', () async {
         mockInRegistry([false, true]);
 
-        await ensureInRegistry(
-          answers: [''],
-        ).ensure(directory: d, ggLog: ggLog);
+        await ensureInRegistry(answers: [''])
+            .ensure(directory: d, ggLog: ggLog);
 
         final blueMessages = coloredMessages.where(
           (m) => m.startsWith('\x1B[34m'),
@@ -161,9 +158,8 @@ void main() {
       test('asks again while the package is not yet visible', () async {
         mockInRegistry([false, false, true]);
 
-        await ensureInRegistry(
-          answers: ['', ''],
-        ).ensure(directory: d, ggLog: ggLog);
+        await ensureInRegistry(answers: ['', ''])
+            .ensure(directory: d, ggLog: ggLog);
 
         expect(
           messages.join('\n'),
@@ -195,9 +191,8 @@ void main() {
         mockInRegistry([false]);
 
         await expectLater(
-          ensureInRegistry(
-            hasTerminal: false,
-          ).ensure(directory: d, ggLog: ggLog),
+          ensureInRegistry(hasTerminal: false)
+              .ensure(directory: d, ggLog: ggLog),
           throwsA(
             isA<Exception>().having(
               (e) => rmControls(e.toString()),
@@ -211,15 +206,13 @@ void main() {
       test('shows a pnpm command with »--access public« for a scoped '
           'npm package', () async {
         File(path.join(d.path, 'pubspec.yaml')).deleteSync();
-        File(
-          path.join(d.path, 'package.json'),
-        ).writeAsStringSync('{"name": "@org/test_pkg", "version": "1.0.0"}');
+        File(path.join(d.path, 'package.json'))
+            .writeAsStringSync('{"name": "@org/test_pkg", "version": "1.0.0"}');
         File(path.join(d.path, 'tsconfig.json')).writeAsStringSync('{}');
         mockInRegistry([false, true]);
 
-        await ensureInRegistry(
-          answers: [''],
-        ).ensure(directory: d, ggLog: ggLog);
+        await ensureInRegistry(answers: [''])
+            .ensure(directory: d, ggLog: ggLog);
 
         final log = messages.join('\n');
         expect(
@@ -231,15 +224,13 @@ void main() {
 
       test('shows a plain pnpm command for an unscoped npm package', () async {
         File(path.join(d.path, 'pubspec.yaml')).deleteSync();
-        File(
-          path.join(d.path, 'package.json'),
-        ).writeAsStringSync('{"name": "test_pkg", "version": "1.0.0"}');
+        File(path.join(d.path, 'package.json'))
+            .writeAsStringSync('{"name": "test_pkg", "version": "1.0.0"}');
         File(path.join(d.path, 'tsconfig.json')).writeAsStringSync('{}');
         mockInRegistry([false, true]);
 
-        await ensureInRegistry(
-          answers: [''],
-        ).ensure(directory: d, ggLog: ggLog);
+        await ensureInRegistry(answers: [''])
+            .ensure(directory: d, ggLog: ggLog);
 
         final log = messages.join('\n');
         expect(log, contains('pnpm publish --no-git-checks'));
@@ -249,9 +240,8 @@ void main() {
       test('treats a null answer like an empty one', () async {
         mockInRegistry([false, true]);
 
-        await ensureInRegistry(
-          answers: [null],
-        ).ensure(directory: d, ggLog: ggLog);
+        await ensureInRegistry(answers: [null])
+            .ensure(directory: d, ggLog: ggLog);
 
         expect(
           messages.join('\n'),

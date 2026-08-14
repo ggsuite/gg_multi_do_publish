@@ -1,5 +1,5 @@
 // @license
-// Copyright (c) 2025 Göran Hegenberg. All Rights Reserved.
+// Copyright (c) ggsuite
 //
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
@@ -27,9 +27,8 @@ void main() {
   });
 
   void mockLatest(Version? version) {
-    when(
-      () => registry.latestVersion(packageName: any(named: 'packageName')),
-    ).thenAnswer((_) async => version);
+    when(() => registry.latestVersion(packageName: any(named: 'packageName')))
+        .thenAnswer((_) async => version);
   }
 
   group('NpmRegistryChecker', () {

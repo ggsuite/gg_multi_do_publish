@@ -1,5 +1,5 @@
 // @license
-// Copyright (c) 2025 Göran Hegenberg. All Rights Reserved.
+// Copyright (c) ggsuite
 //
 // Use of this source code is governed by terms that can be
 // found in the LICENSE file in the root of this package.
@@ -14,19 +14,17 @@ import 'package:gg_lang/gg_lang.dart';
 /// [RegistryWaiter] directly) so the publish flow can inject a mock and
 /// dispatch by project type.
 class PubDevChecker {
-  /// Creates a new checker. Inject [waiter] in tests; production resolves a
+  /// Creates a new checker. Inject [_waiter] in tests; production resolves a
   /// [RegistryWaiter] over the pub.dev registry from the language catalog.
   PubDevChecker({
-    RegistryWaiter? waiter,
-    LanguageCatalog? catalog,
-    Future<void> Function(Duration duration)? delay,
+    this._waiter,
+    this._catalog,
+    this._delay,
     this.pollInterval = const Duration(seconds: 15),
     // pub.dev can take up to ~10 minutes to make a fresh upload visible —
     // the default leaves headroom beyond that.
     this.timeout = const Duration(minutes: 15),
-  }) : _waiter = waiter,
-       _catalog = catalog,
-       _delay = delay;
+  });
 
   final RegistryWaiter? _waiter;
   final LanguageCatalog? _catalog;
