@@ -26,7 +26,8 @@ and the daily flows it builds on in `gg_multi_commit`.
   `<ticket>/.gg/.gg-publish.json`; no prompt ever sits between two
   publishes.
 - **`can publish`** — the ticket-wide preflight (uncommitted changes,
-  `did commit`, `do push`, `can merge`, npm login) plus the per-repo
+  `did commit`, `do push`, `can merge`, npm login — the npm login is
+  skipped for `--merge-only`, which uploads nothing) plus the per-repo
   gate `do publish` runs right before each repo's release.
 - **Skip checks** — unchanged repos are not published:
   `PublishSkipCheck` (gg_multi_core) decides, `--publish-unchanged`

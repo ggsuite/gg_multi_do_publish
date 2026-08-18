@@ -107,12 +107,17 @@ class CanPublishCommand extends DirCommand<void> {
   ///
   /// [pana] turns the pana analysis inside `gg can publish` off; it defaults to
   /// `--[no-]pana` from the command line, which in turn defaults to running it.
+  ///
+  /// [mergeOnly] announces a `gg do publish --merge-only` run: it releases
+  /// nothing to any registry, so the npm authentication is not checked. A
+  /// missing npm login must not block a merge that never talks to npm.
   Future<void> checkTicket({
     required Directory directory,
     required GgLog ggLog,
     bool? verbose,
     bool? pana,
     bool includeCanPublish = true,
+    bool mergeOnly = false,
   }) async {
     verbose ??= argResults?['verbose'] as bool? ?? false;
     pana ??= _panaFromArgs;
@@ -186,11 +191,17 @@ class CanPublishCommand extends DirCommand<void> {
     // `do publish`'s per-repo gate: finding out about a missing npm login
     // after the first packages went to a registry is the worst failure mode
     // this command has. Repos not publishing to npm are skipped by gg_one.
-    await GgStatusPrinter<void>(
-      message: 'Logged in to npm?',
-      ggLog: ggLog,
-      dark: true,
-    ).run(() async => _checkNpmLoggedIn(subs: subs, ggLog: taskLog));
+    //
+    // A merge-only run uploads nothing, so there is no registry to be
+    // authenticated against — asking for the npm login would block a merge
+    // over credentials it never uses.
+    if (!mergeOnly) {
+      await GgStatusPrinter<void>(
+        message: 'Logged in to npm?',
+        ggLog: ggLog,
+        dark: true,
+      ).run(() async => _checkNpmLoggedIn(subs: subs, ggLog: taskLog));
+    }
 
     // Step 8: Run gg can publish per repo -----------------------------------
     // Verifies each repo's publish readiness (feature branch, CHANGELOG,

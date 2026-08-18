@@ -1278,6 +1278,34 @@ void main() {
         ).called(2);
         expect(messages.any((m) => m.contains('Logged in to npm?')), isTrue);
       });
+
+      test('checks no npm login for a merge-only run', () async {
+        // A merge-only run uploads nothing, so there is no registry to be
+        // authenticated against — a missing npm login must not block it.
+        await command().checkTicket(
+          directory: ticketDir,
+          ggLog: ggLog,
+          verbose: true,
+          includeCanPublish: false,
+          mergeOnly: true,
+        );
+
+        verifyNever(
+          () => mockGgNpmLoggedIn.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        );
+        expect(messages.any((m) => m.contains('Logged in to npm?')), isFalse);
+
+        // Everything else still ran.
+        verify(
+          () => mockGgCanMerge.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).called(2);
+      });
     });
 
     group('--no-pana', () {
