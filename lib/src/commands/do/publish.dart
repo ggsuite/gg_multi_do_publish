@@ -450,6 +450,8 @@ class DoPublishCommand extends DirCommand<void> {
           ggLog: ggLog,
           pana: usePana,
           includeCanPublish: false,
+          // A merge-only run releases nothing, so it needs no npm login.
+          mergeOnly: isMergeOnly,
         );
       } on MergeConflictException {
         // Conflicts are resolved by the user; the report the push threw

@@ -292,6 +292,7 @@ void main() {
           verbose: any(named: 'verbose'),
           pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenThrow(Exception('stop after can publish'));
 
@@ -328,6 +329,7 @@ void main() {
           verbose: any(named: 'verbose'),
           pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ]);
 
@@ -398,6 +400,7 @@ void main() {
           verbose: any(named: 'verbose'),
           pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       );
     });
@@ -422,6 +425,7 @@ void main() {
           verbose: any(named: 'verbose'),
           pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenThrow(
         MergeConflictException(
@@ -1656,6 +1660,7 @@ void main() {
           verbose: any(named: 'verbose'),
           pana: any(named: 'pana'),
           includeCanPublish: any(named: 'includeCanPublish'),
+          mergeOnly: any(named: 'mergeOnly'),
         ),
       ).thenThrow(Exception('can publish failed'));
 
@@ -6811,6 +6816,28 @@ void main() {
       expect(messages, contains('\nAll repos merged\n'));
     });
 
+    test('tells the ticket checks that no npm login is needed', () async {
+      // A merge-only run uploads nothing, so a missing npm login must not
+      // block it.
+      await buildFlagRunner().run([
+        'publish',
+        '--input',
+        ticketDir.path,
+        '--merge-only',
+      ]);
+
+      verify(
+        () => mockCanPublishCommand.checkTicket(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
+          includeCanPublish: any(named: 'includeCanPublish'),
+          mergeOnly: true,
+        ),
+      ).called(1);
+    });
+
     test('merges every repo without publishing or tagging', () async {
       await buildRunner().run(['publish', '--input', ticketDir.path, '-v']);
 
@@ -7276,6 +7303,7 @@ void main() {
             verbose: any(named: 'verbose'),
             pana: any(named: 'pana'),
             includeCanPublish: false,
+            mergeOnly: any(named: 'mergeOnly'),
           ),
         ).called(1);
         verify(
@@ -7298,6 +7326,7 @@ void main() {
             verbose: any(named: 'verbose'),
             pana: captureAny(named: 'pana'),
             includeCanPublish: any(named: 'includeCanPublish'),
+            mergeOnly: any(named: 'mergeOnly'),
           ),
         ).captured.cast<bool?>(),
         ...verify(
@@ -7797,6 +7826,7 @@ void stubCanPublish(MockCanPublishCommand mock) {
       verbose: any(named: 'verbose'),
       pana: any(named: 'pana'),
       includeCanPublish: any(named: 'includeCanPublish'),
+      mergeOnly: any(named: 'mergeOnly'),
     ),
   ).thenAnswer((_) async {});
 
