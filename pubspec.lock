@@ -284,10 +284,11 @@ packages:
   gg_multi_commit:
     dependency: "direct main"
     description:
-      path: "../gg_multi_commit"
-      relative: true
-    source: path
-    version: "4.1.0"
+      name: gg_multi_commit
+      sha256: "208977462b718b108a0dc71fb4cc613c231dcad6a4d6f354fcb82abc25b8aed7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.1"
   gg_multi_core:
     dependency: "direct main"
     description:
