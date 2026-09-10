@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.1 - 2026-09-11
+
+### Fixed
+
+- Update the dependencies to the fixes of ticket 137
+
 ## 4.2.0 - 2026-09-02
 
 ### Changed
