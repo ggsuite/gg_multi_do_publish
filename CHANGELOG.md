@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.3.1 - 2026-09-11
+
+### Changed
+
+- Depend on gg_localize_refs 5, whose pnpm localization links TypeScript dependencies through shims leading to the sibling sources.
+
 ## 4.3.0 - 2026-09-11
 
 ### Fixed
