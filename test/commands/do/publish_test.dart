@@ -3725,26 +3725,41 @@ void main() {
     late MockProcessRunner m;
     late String dirA;
 
+    setUpAll(() {
+      // The develop tests stub the skip check, whose `get` takes a Node.
+      registerFallbackValue(FakeNode());
+      registerFallbackValue(<String, String>{});
+    });
+
     /// Creates a runner wired with all mocks of this group.
-    CommandRunner<void> buildRunner() =>
-        CommandRunner<void>('test', 'do publish ticket')..addCommand(
-          makePublishCommand(
-            ggLog: ggLog,
-            ensureInRegistry: mockEnsureInRegistry,
-            systemCommit: mockSystemCommit,
-            unlocalizeRefs: mockUnlocalizeRefs,
-            restorePublishTo: mockRestorePublishTo,
-            ggDoPush: mockGgDoPush,
-            ggDoPublish: mockGgDoPublish,
-            sortedProcessingList: mockSortedProcessingList,
-            processRunner: m.call,
-            canPublishCommand: mockCanPublishCommand,
-            didReviewCommand: mockDidReviewCommand,
-            getVersionCommand: mockGetVersion,
-            setRefVersionCommand: mockSetRefVersion,
-            getRefVersionCommand: mockGetRefVersion,
-          ),
-        );
+    ///
+    /// The default branch resolves to `main` unless [defaultBranch] says
+    /// otherwise; [publishSkipCheck] replaces the real skip check for tests
+    /// whose repository is a real git repository.
+    CommandRunner<void> buildRunner({
+      DefaultBranch? defaultBranch,
+      PublishSkipCheck? publishSkipCheck,
+    }) => CommandRunner<void>('test', 'do publish ticket')
+      ..addCommand(
+        makePublishCommand(
+          ggLog: ggLog,
+          ensureInRegistry: mockEnsureInRegistry,
+          systemCommit: mockSystemCommit,
+          unlocalizeRefs: mockUnlocalizeRefs,
+          restorePublishTo: mockRestorePublishTo,
+          ggDoPush: mockGgDoPush,
+          ggDoPublish: mockGgDoPublish,
+          sortedProcessingList: mockSortedProcessingList,
+          processRunner: m.call,
+          canPublishCommand: mockCanPublishCommand,
+          didReviewCommand: mockDidReviewCommand,
+          getVersionCommand: mockGetVersion,
+          setRefVersionCommand: mockSetRefVersion,
+          getRefVersionCommand: mockGetRefVersion,
+          defaultBranch: defaultBranch,
+          publishSkipCheck: publishSkipCheck,
+        ),
+      );
 
     /// Makes `gg do publish` fail for the single repo A.
     void stubPublishFails() {
@@ -4344,19 +4359,13 @@ void main() {
       );
     });
 
-    test('falls back to master and tolerates unreachable remotes', () async {
+    test('works with a master default branch and tolerates unreachable '
+        'remotes', () async {
       stubPublishFails();
       stubHeadMoves('h0', 'h1');
 
-      // No main branch → the snapshot falls back to master.
-      when(
-        () => m('git', [
-          'rev-parse',
-          '--verify',
-          '--quiet',
-          'refs/heads/main',
-        ], workingDirectory: any(named: 'workingDirectory')),
-      ).thenAnswer((_) async => ProcessResult(0, 1, '', ''));
+      // The repository's default branch is master → the snapshot asks for
+      // master, never for main.
       when(
         () => m('git', [
           'rev-parse',
@@ -4388,12 +4397,9 @@ void main() {
       ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
 
       await expectLater(
-        () async => buildRunner().run([
-          'publish',
-          '--verbose',
-          '--input',
-          ticketDir.path,
-        ]),
+        () async =>
+            buildRunner(defaultBranch: stubDefaultBranch('master'))
+                .run(['publish', '--verbose', '--input', ticketDir.path]),
         throwsA(isA<Exception>()),
       );
 
@@ -4407,30 +4413,22 @@ void main() {
           workingDirectory: any(named: 'workingDirectory'),
         ),
       );
+      verifyNever(
+        () => m(
+          'git',
+          any(that: contains('refs/heads/main')),
+          workingDirectory: any(named: 'workingDirectory'),
+        ),
+      );
     });
 
     test('works without a default branch and an unreadable version', () async {
       stubPublishFails();
       stubHeadMoves('h0', 'h1');
 
-      // Neither main nor master exist; the version is unreadable — both are
-      // tolerated and the full restore still runs.
-      when(
-        () => m('git', [
-          'rev-parse',
-          '--verify',
-          '--quiet',
-          'refs/heads/main',
-        ], workingDirectory: any(named: 'workingDirectory')),
-      ).thenAnswer((_) async => ProcessResult(0, 1, '', ''));
-      when(
-        () => m('git', [
-          'rev-parse',
-          '--verify',
-          '--quiet',
-          'refs/heads/master',
-        ], workingDirectory: any(named: 'workingDirectory')),
-      ).thenAnswer((_) async => ProcessResult(0, 1, '', ''));
+      // The repository declares no default branch at all (an empty name);
+      // the version is unreadable — both are tolerated and the full restore
+      // still runs.
       when(() => mockGetVersion.get(directory: any(named: 'directory')))
           .thenThrow(Exception('no version'));
       when(
@@ -4442,19 +4440,23 @@ void main() {
       ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
 
       await expectLater(
-        () async => buildRunner().run([
-          'publish',
-          '--verbose',
-          '--input',
-          ticketDir.path,
-        ]),
+        () async =>
+            buildRunner(defaultBranch: stubDefaultBranch(''))
+                .run(['publish', '--verbose', '--input', ticketDir.path]),
         throwsA(isA<Exception>()),
       );
 
       verify(() => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA))
           .called(1);
-      // No default branch → neither main nor master is queried on the remote.
-      // (The feature branch is still queried, so this is scoped to main/master.)
+      // No default branch → no local branch head is read and nothing but the
+      // feature branch is queried on the remote.
+      verifyNever(
+        () => m(
+          'git',
+          any(that: contains('--verify')),
+          workingDirectory: any(named: 'workingDirectory'),
+        ),
+      );
       verifyNever(
         () => m('git', [
           'ls-remote',
@@ -4468,6 +4470,176 @@ void main() {
           'origin',
           'refs/heads/master',
         ], workingDirectory: any(named: 'workingDirectory')),
+      );
+    });
+
+    test(
+      'rolls back a develop default branch declared by origin/HEAD',
+      () async {
+        // A real repository whose origin declares develop — there is no main
+        // and no master. The real DefaultBranch has to find develop, and the
+        // rollback has to compare and reset *that* branch.
+        await initDevelopRepo(Directory(dirA));
+        stubPublishFails();
+        stubHeadMoves('h0', 'h1');
+
+        // develop moved locally during the failed run (d0 → d1) ...
+        var developCalls = 0;
+        when(
+          () => m('git', [
+            'rev-parse',
+            '--verify',
+            '--quiet',
+            'refs/heads/develop',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer(
+          (_) async =>
+              ProcessResult(0, 0, developCalls++ == 0 ? 'd0' : 'd1', ''),
+        );
+        // ... while origin/develop stayed where it was.
+        when(
+          () => m('git', [
+            'ls-remote',
+            'origin',
+            'refs/heads/develop',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer(
+          (_) async => ProcessResult(0, 0, 'r0\trefs/heads/develop', ''),
+        );
+        when(
+          () => m('git', [
+            'reset',
+            '--hard',
+            'h0',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
+        when(
+          () => m('git', [
+            'branch',
+            '-f',
+            'develop',
+            'd0',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
+
+        final skipCheck = MockPublishSkipCheck();
+        when(
+          () => skipCheck.get(
+            repo: any(named: 'repo'),
+            refVersions: any(named: 'refVersions'),
+          ),
+        ).thenAnswer(
+          (_) async =>
+              const PublishSkipDecision(skip: false, reason: 'changed'),
+        );
+
+        await expectLater(
+          () async => buildRunner(
+            defaultBranch: DefaultBranch(ggLog: ggLog),
+            publishSkipCheck: skipCheck,
+          ).run(['publish', '--verbose', '--input', ticketDir.path]),
+          throwsA(
+            isA<Exception>().having(
+              (e) => rmControls(e.toString()),
+              'message',
+              contains('publish failed'),
+            ),
+          ),
+        );
+
+        // The snapshot found develop, the remote comparison used develop and
+        // the rollback put develop back — main was never mentioned.
+        verify(
+          () => m('git', [
+            'ls-remote',
+            'origin',
+            'refs/heads/develop',
+          ], workingDirectory: dirA),
+        ).called(2);
+        verify(
+          () => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA),
+        ).called(1);
+        verify(
+          () => m('git', [
+            'branch',
+            '-f',
+            'develop',
+            'd0',
+          ], workingDirectory: dirA),
+        ).called(1);
+        verifyNever(
+          () => m(
+            'git',
+            any(that: anyElement(contains('main'))),
+            workingDirectory: any(named: 'workingDirectory'),
+          ),
+        );
+      },
+    );
+
+    test('reports origin/develop as already released when it moved', () async {
+      // Same repository, but this time origin/develop received the release
+      // before the failure: the rollback keeps every commit and names the
+      // branch it saw move.
+      await initDevelopRepo(Directory(dirA));
+      stubPublishFails();
+      stubHeadMoves('h0', 'h1');
+      when(
+        () => m('git', [
+          'rev-parse',
+          '--verify',
+          '--quiet',
+          'refs/heads/develop',
+        ], workingDirectory: any(named: 'workingDirectory')),
+      ).thenAnswer((_) async => ProcessResult(0, 0, 'd0', ''));
+      var remoteCalls = 0;
+      when(
+        () => m('git', [
+          'ls-remote',
+          'origin',
+          'refs/heads/develop',
+        ], workingDirectory: any(named: 'workingDirectory')),
+      ).thenAnswer(
+        (_) async => ProcessResult(
+          0,
+          0,
+          remoteCalls++ == 0
+              ? 'r0\trefs/heads/develop'
+              : 'r9\trefs/heads/develop',
+          '',
+        ),
+      );
+
+      final skipCheck = MockPublishSkipCheck();
+      when(
+        () => skipCheck.get(
+          repo: any(named: 'repo'),
+          refVersions: any(named: 'refVersions'),
+        ),
+      ).thenAnswer(
+        (_) async => const PublishSkipDecision(skip: false, reason: 'changed'),
+      );
+
+      await expectLater(
+        () async => buildRunner(
+          defaultBranch: DefaultBranch(ggLog: ggLog),
+          publishSkipCheck: skipCheck,
+        ).run(['publish', '--verbose', '--input', ticketDir.path]),
+        throwsA(isA<Exception>()),
+      );
+
+      verifyNever(
+        () => m(
+          'git',
+          any(that: contains('reset')),
+          workingDirectory: any(named: 'workingDirectory'),
+        ),
+      );
+      expect(
+        messages.any(
+          (msg) => msg.contains('origin/develop already received the release'),
+        ),
+        isTrue,
       );
     });
 
@@ -5777,12 +5949,14 @@ void main() {
       TicketState? ticketState,
       RepoConfigurator? doConfigurePublishCommand,
       PublishedVersion? publishedVersion,
+      DefaultBranch? defaultBranch,
     }) => CommandRunner<void>('test', 'do publish ticket')
       ..addCommand(
         makePublishCommand(
           ggLog: ggLog,
           doConfigurePublishCommand: doConfigurePublishCommand,
           publishedVersion: publishedVersion,
+          defaultBranch: defaultBranch,
           ensureInRegistry: mockEnsureInRegistry,
           ggDoPublish: mockGgDoPublish,
           systemCommit: mockSystemCommit,
@@ -6140,6 +6314,63 @@ void main() {
       // The rest of the restore still ran.
       expect(log, contains('back on TICKPB — local references restored'));
     });
+
+    test(
+      'merges a develop default branch back into the feature branch',
+      () async {
+        // A is a real repository whose origin declares develop as its default
+        // branch — no main, no master. The real DefaultBranch resolves it, so
+        // the post-publish restore merges develop back, not main.
+        await initDevelopRepo(Directory(path.join(ticketDir.path, 'A')));
+        stubSkipCheck({'B'});
+        when(
+          () => mockProcessRunner('git', [
+            'rev-parse',
+            '--verify',
+            '--quiet',
+            'refs/heads/develop',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer((_) async => ProcessResult(0, 0, 'd0', ''));
+        when(
+          () => mockProcessRunner('git', [
+            'ls-remote',
+            'origin',
+            'refs/heads/develop',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer(
+          (_) async => ProcessResult(0, 0, 'r0\trefs/heads/develop', ''),
+        );
+        when(
+          () => mockProcessRunner('git', [
+            'merge',
+            '-m',
+            '#gg: merge the published develop back into TICKPB',
+            'develop',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
+
+        await buildRunner(defaultBranch: DefaultBranch(ggLog: ggLog))
+            .run(['publish', '--input', ticketDir.path, '--verbose']);
+
+        final log = messages.join('\n');
+        expect(log, contains('All repos published'));
+        verify(
+          () => mockProcessRunner('git', [
+            'merge',
+            '-m',
+            '#gg: merge the published develop back into TICKPB',
+            'develop',
+          ], workingDirectory: path.join(ticketDir.path, 'A')),
+        ).called(1);
+        verifyNever(
+          () => mockProcessRunner(
+            'git',
+            any(that: anyElement(contains('main'))),
+            workingDirectory: any(named: 'workingDirectory'),
+          ),
+        );
+      },
+    );
 
     test('warns when the didReview state cannot be refreshed', () async {
       stubSkipCheck({'A', 'B'});
@@ -7965,7 +8196,13 @@ DoPublishCommand makePublishCommand({
   TicketState? ticketState,
   gg.InteractAdapter? interactAdapter,
   gg.HasTerminal? hasTerminal,
+  DefaultBranch? defaultBranch,
 }) {
+  // The repositories of these tests are plain folders, so the real
+  // `DefaultBranch` would find no branch at all. Unless a test brings its
+  // own resolver, the default branch is `main` — the value the git stubs
+  // of `_stubRepoSnapshot` are written for.
+  defaultBranch ??= stubDefaultBranch('main');
   // The planner asks every question again now — a recorded answer is a
   // pre-selected default, not a reason to skip. These tests drive the flow,
   // not the prompts, so they run headless unless a test says otherwise: the
@@ -8071,5 +8308,51 @@ DoPublishCommand makePublishCommand({
     ticketState: ticketState,
     interactAdapter: interactAdapter ?? MockInteractAdapter(),
     hasTerminal: hasTerminal,
+    defaultBranch: defaultBranch,
   );
+}
+
+/// A [DefaultBranch] stand-in that answers [name] for every repository —
+/// an empty name meaning »this repository has no default branch«.
+MockDefaultBranch stubDefaultBranch(String name) {
+  final mock = MockDefaultBranch();
+  when(
+    () => mock.get(
+      directory: any(named: 'directory'),
+      ggLog: any(named: 'ggLog'),
+    ),
+  ).thenAnswer((_) async => name);
+  return mock;
+}
+
+/// Turns [repoDir] into a git repository whose origin declares `develop` as
+/// its default branch — a bare remote with `HEAD → refs/heads/develop`, no
+/// `main` or `master` anywhere — checked out on the ticket branch `TICKPB`.
+///
+/// `git remote set-head` records the remote's choice as
+/// `refs/remotes/origin/HEAD`, which is what the real [DefaultBranch] reads.
+Future<void> initDevelopRepo(Directory repoDir) async {
+  final originDir = Directory(path.join(repoDir.parent.path, 'A-origin.git'));
+  Future<void> git(List<String> args, {Directory? dir}) async {
+    final result = await Process.run(
+      'git',
+      args,
+      workingDirectory: (dir ?? repoDir).path,
+    );
+    if (result.exitCode != 0) {
+      throw Exception('git ${args.join(' ')} failed: ${result.stderr}');
+    }
+  }
+
+  await originDir.create(recursive: true);
+  await git(['init', '--bare', '--initial-branch=develop'], dir: originDir);
+  await git(['init', '--initial-branch=develop']);
+  await git(['config', 'user.email', 'test@example.com']);
+  await git(['config', 'user.name', 'Test']);
+  await git(['add', '.']);
+  await git(['commit', '-m', 'Initial commit']);
+  await git(['remote', 'add', 'origin', originDir.path]);
+  await git(['push', '--set-upstream', 'origin', 'develop']);
+  await git(['remote', 'set-head', 'origin', '--auto']);
+  await git(['checkout', '-b', 'TICKPB']);
 }

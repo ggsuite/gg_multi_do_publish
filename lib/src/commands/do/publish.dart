@@ -59,7 +59,9 @@ class _RepoPublishSnapshot {
   /// The package version at snapshot time (null when unreadable).
   final String? version;
 
-  /// The name of the default branch (`main`/`master`), null when absent.
+  /// The name of the repository's default branch — what `origin/HEAD`
+  /// declares (`develop`, `main`, `master`, …) — null when the repository has
+  /// none.
   final String? mainBranch;
 
   /// The local commit hash of [mainBranch], null when absent.
@@ -148,6 +150,7 @@ class DoPublishCommand extends DirCommand<void> {
     TicketState? ticketState,
     gg.InteractAdapter? interactAdapter,
     gg.HasTerminal? hasTerminal,
+    DefaultBranch? defaultBranch,
   }) : _systemCommit = systemCommit ?? gg.GgSystemCommit(ggLog: ggLog),
        _ggDoUpgradeDeps = ggDoUpgradeDeps ?? gg.DoUpgradeDeps(ggLog: ggLog),
        _ggCanCommit = ggCanCommit ?? gg.CanCommit(ggLog: ggLog),
@@ -182,6 +185,7 @@ class DoPublishCommand extends DirCommand<void> {
        _interactAdapter = interactAdapter ?? gg.DefaultInteractAdapter(),
        // coverage:ignore-end
        _hasTerminal = hasTerminal ?? gg.defaultHasTerminal,
+       _defaultBranch = defaultBranch ?? DefaultBranch(ggLog: ggLog),
        _processRunner = processRunner ?? defaultProcessRunner {
     _addArgs();
   }
@@ -284,6 +288,11 @@ class DoPublishCommand extends DirCommand<void> {
 
   /// Runs shell commands such as branch deletion.
   final ProcessRunner _processRunner;
+
+  /// Resolves the repository's default branch — what `origin/HEAD` declares,
+  /// falling back to `main`/`master` — so the snapshot, the merge-back and
+  /// the rollback work on `develop` exactly as on `main`.
+  final DefaultBranch _defaultBranch;
 
   @override
   Future<void> exec({
@@ -1079,8 +1088,9 @@ class DoPublishCommand extends DirCommand<void> {
   ///   2. Merge the default branch back into it. Right after the publish
   ///      both branches hold identical content, so the merge is trivially
   ///      clean — but it makes the release the common ancestor of every
-  ///      future merge. Without it, the next `do push` (which merges main
-  ///      into the feature branch) would see the squash commit and the
+  ///      future merge. Without it, the next `do push` (which merges the
+  ///      default branch into the feature branch) would see the squash
+  ///      commit and the
   ///      feature branch as two competing edits of the same lines and
   ///      conflict — for TypeScript repos on every single publish.
   ///   3. Restore the workspace wiring files (`pubspec_overrides.yaml`,
@@ -1371,15 +1381,16 @@ class DoPublishCommand extends DirCommand<void> {
       } catch (_) {
         version = null;
       }
-      String? mainBranch = 'main';
-      String? mainHead = await _localBranchHead(repoDir, 'main');
-      if (mainHead == null) {
-        mainBranch = 'master';
-        mainHead = await _localBranchHead(repoDir, 'master');
-        if (mainHead == null) {
-          mainBranch = null;
-        }
-      }
+      // The default branch is whatever the repository declares — `develop`
+      // is as valid as `main`. An empty name means there is none.
+      final defaultBranchName = await _defaultBranch.get(
+        directory: repoDir,
+        ggLog: ggLog,
+      );
+      final mainBranch = defaultBranchName.isEmpty ? null : defaultBranchName;
+      final mainHead = mainBranch == null
+          ? null
+          : await _localBranchHead(repoDir, mainBranch);
       final remoteMainHead = mainBranch == null
           ? null
           : await _remoteBranchHead(repoDir, mainBranch);
@@ -1505,8 +1516,9 @@ class DoPublishCommand extends DirCommand<void> {
   ///
   /// Two modes, because a publish has effects that must not be undone: when the
   /// failed run already *committed* a version bump (the registry release may
-  /// exist — pub.dev/npm cannot be unpublished), already moved `origin/main`,
-  /// or already pushed the feature branch, only half-done merges/rebases are
+  /// exist — pub.dev/npm cannot be unpublished), already moved the remote
+  /// default branch (`origin/main`, `origin/develop`, …), or already pushed
+  /// the feature branch, only half-done merges/rebases are
   /// ended and the original branch is checked out again; all commits are kept
   /// so a re-run of `gg do publish` resumes. Otherwise nothing irreversible
   /// happened and the full snapshot is restored: HEAD, default-branch
@@ -1633,16 +1645,16 @@ class DoPublishCommand extends DirCommand<void> {
       repoStateFile.deleteSync();
     }
 
-    if (s.mainBranch != null &&
-        s.mainBranch != s.branch &&
-        s.mainHead != null) {
-      final mainHeadNow = await _localBranchHead(repoDir, s.mainBranch!);
-      if (mainHeadNow != null && mainHeadNow != s.mainHead) {
+    final mainBranch = s.mainBranch;
+    final mainHead = s.mainHead;
+    if (mainBranch != null && mainBranch != s.branch && mainHead != null) {
+      final mainHeadNow = await _localBranchHead(repoDir, mainBranch);
+      if (mainHeadNow != null && mainHeadNow != mainHead) {
         await _runGit(<String>[
           'branch',
           '-f',
-          s.mainBranch!,
-          s.mainHead!,
+          mainBranch,
+          mainHead,
         ], repoDir: repoDir);
       }
     }

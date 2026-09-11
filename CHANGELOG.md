@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `gg do publish` merges back, checks and rolls back the repository's default branch instead of assuming `main`/`master`
+
 ## 4.2.1 - 2026-09-11
 
 ### Fixed
