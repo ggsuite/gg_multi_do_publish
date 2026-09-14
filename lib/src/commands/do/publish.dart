@@ -763,14 +763,12 @@ class DoPublishCommand extends DirCommand<void> {
 
     final index = await _interactAdapter.choose(
       // The blank line separates the question from the publish log above it.
-      // The question is a heading, the options are what the user acts on. The
-      // command sits at the very end of its option, so wrapping it in cCmd
-      // resets no color that still has text to cover.
-      message: '\n${cH1('What should happen to the ticket when ready?')}',
+      // The prompt theme colors question and options; the command is bold,
+      // not blue, because blue marks the option under the cursor.
+      message: '\nWhat should happen to the ticket when ready?',
       options: <String>[
-        cAction('Move to .trash and delete the remote branches'),
-        '${cAction('Remove it manually with ')}'
-            '${cCmd('»gg do rm ticket $ticketName«')}',
+        'Move to .trash and delete the remote branches',
+        'Remove it manually with ${bold('»gg do rm ticket $ticketName«')}',
       ],
     );
     return index == 0;

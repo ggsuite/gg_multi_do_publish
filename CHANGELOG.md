@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.3.2 - 2026-09-14
+
+### Changed
+
+- `gg do publish` asks what should happen to the ticket in the colors of the other prompts; the `gg do rm ticket` command in its option is bold instead of blue
+
 ## 4.3.1 - 2026-09-11
 
 ### Changed

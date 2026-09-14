@@ -6418,6 +6418,11 @@ void main() {
     });
 
     group('the end-of-run cleanup offer', () {
+      // Colors on, so the comparisons see every escape sequence — with
+      // NO_COLOR a color function returns the plain text.
+      setUp(() => ggColorsEnabled = true);
+      tearDown(() => ggColorsEnabled = null);
+
       test('offers the cleanup and trashes the ticket on accept', () async {
         // A skips, B publishes — a run that releases something is the only
         // one that reaches the cleanup offer. A run in which nothing happened
@@ -6447,18 +6452,25 @@ void main() {
           hasTerminal: () => true,
         ).run(['publish', '--input', ticketDir.path]);
 
-        // The offer names both ways out.
-        final options =
-            verify(
-                  () => adapter.choose(
-                    message: any(named: 'message'),
-                    options: captureAny(named: 'options'),
-                  ),
-                ).captured.single
-                as List<String>;
+        // The offer names both ways out. It brings no colors of its own —
+        // the prompt theme colors it — only the command is bold.
+        final captured = verify(
+          () => adapter.choose(
+            message: captureAny(named: 'message'),
+            options: captureAny(named: 'options'),
+          ),
+        ).captured;
+        expect(
+          captured.first,
+          '\nWhat should happen to the ticket when ready?',
+        );
+        final options = captured.last as List<String>;
         expect(options, hasLength(2));
-        expect(options.first, contains('.trash'));
-        expect(options.last, contains('gg do rm ticket'));
+        expect(options.first, 'Move to .trash and delete the remote branches');
+        expect(
+          options.last,
+          'Remove it manually with \x1B[1m»gg do rm ticket TICKPB«\x1B[0m',
+        );
 
         // Everything moved to the trash, the remote branches are gone and
         // the way to the workspace root is printed in blue.
