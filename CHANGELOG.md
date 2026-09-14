@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Let the prompt theme color the ticket cleanup question
+
 ## 4.3.1 - 2026-09-11
 
 ### Changed
