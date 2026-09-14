@@ -6418,6 +6418,11 @@ void main() {
     });
 
     group('the end-of-run cleanup offer', () {
+      // Colors on, so the comparisons see every escape sequence — with
+      // NO_COLOR a color function returns the plain text.
+      setUp(() => ggColorsEnabled = true);
+      tearDown(() => ggColorsEnabled = null);
+
       test('offers the cleanup and trashes the ticket on accept', () async {
         // A skips, B publishes — a run that releases something is the only
         // one that reaches the cleanup offer. A run in which nothing happened
@@ -6464,7 +6469,7 @@ void main() {
         expect(options.first, 'Move to .trash and delete the remote branches');
         expect(
           options.last,
-          'Remove it manually with ${bold('»gg do rm ticket TICKPB«')}',
+          'Remove it manually with \x1B[1m»gg do rm ticket TICKPB«\x1B[0m',
         );
 
         // Everything moved to the trash, the remote branches are gone and
