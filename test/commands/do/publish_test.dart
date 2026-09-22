@@ -730,6 +730,201 @@ void main() {
       expect(coloredMessages, contains(cCmd('  gg do rm ticket TICKPB')));
     });
 
+    test(
+      'settles 10s after every published repo before the next one starts',
+      () async {
+        // A registry can report a version as visible while it is still
+        // propagating — the flat settle delay is a safety margin on top of
+        // the targeted dependency wait, independent of whether the next repo
+        // actually depends on the one just published.
+        final mockGgDoPublish = MockGgDoPublish();
+        final mockSystemCommit = MockGgSystemCommit();
+        final mockGgDoPush = MockGgDoPush();
+        final mockUnlocalizeRefs = MockUnlocalizeRefs();
+        final mockLocalizeRefs = MockLocalizeRefs();
+        final mockSortedProcessingList = MockSortedProcessingList();
+        final mockProcessRunner = MockProcessRunner();
+        _stubPubUpgrade(mockProcessRunner);
+        _stubRepoSnapshot(mockProcessRunner);
+        final mockCanPublishCommand = MockCanPublishCommand();
+        final mockDidReviewCommand = MockDidReviewCommand();
+        final mockGetVersion = MockGetVersion();
+        final mockSetRefVersion = MockSetRefVersion();
+        final mockGetRefVersion = MockGetRefVersion();
+        final mockPubDevChecker = MockPubDevChecker();
+        final delayedDurations = <Duration>[];
+
+        when(
+          () => mockLocalizeRefs.get(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer((_) async {});
+
+        when(
+          () => mockDidReviewCommand.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer((_) async {});
+
+        stubCanPublish(mockCanPublishCommand);
+
+        when(
+          () => mockSortedProcessingList.get(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer(
+          (_) async => [
+            Node(
+              name: 'A',
+              directory: Directory(path.join(ticketDir.path, 'A')),
+              manifest: DartPackageManifest(pubspec: Pubspec('A')),
+            ),
+            Node(
+              name: 'B',
+              directory: Directory(path.join(ticketDir.path, 'B')),
+              manifest: DartPackageManifest(
+                pubspec: Pubspec(
+                  'B',
+                  dependencies: <String, Dependency>{
+                    'A': HostedDependency(
+                      version: VersionConstraint.parse('^1.0.0'),
+                    ),
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+
+        when(
+          () => mockUnlocalizeRefs.get(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer((_) async {});
+
+        when(
+          () => mockSystemCommit.commit(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            message: any(named: 'message'),
+            paths: any(named: 'paths'),
+            includeUntracked: any(named: 'includeUntracked'),
+            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+            userCommitMessage: any(named: 'userCommitMessage'),
+            stateKey: any(named: 'stateKey'),
+          ),
+        ).thenAnswer(
+          (_) async => const gg.GgSystemCommitResult(
+            userCommitCreated: false,
+            systemCommitCreated: true,
+            ggOwnedPaths: ['pubspec.yaml'],
+            foreignPaths: [],
+          ),
+        );
+
+        when(
+          () => mockGgDoPush.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            force: any(named: 'force'),
+          ),
+        ).thenAnswer((_) async {});
+
+        when(
+          () => mockGgDoPublish.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            message: any(named: 'message'),
+            deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+            verbose: any(named: 'verbose'),
+            versionIncrement: any(named: 'versionIncrement'),
+            channel: any(named: 'channel'),
+            askBeforePublishing: any(named: 'askBeforePublishing'),
+            resume: any(named: 'resume'),
+            pr: any(named: 'pr'),
+            mergeOnly: any(named: 'mergeOnly'),
+            force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
+          ),
+        ).thenAnswer((_) async {});
+
+        when(() => mockGetVersion.get(directory: any(named: 'directory')))
+            .thenAnswer((_) async => '1.0.0');
+
+        when(
+          () => mockGetRefVersion.get(
+            directory: any(named: 'directory'),
+            ref: any(named: 'ref'),
+          ),
+        ).thenAnswer((_) async => null);
+
+        when(
+          () => mockSetRefVersion.get(
+            directory: any(named: 'directory'),
+            ref: any(named: 'ref'),
+            version: any(named: 'version'),
+          ),
+        ).thenAnswer((_) async {});
+
+        when(
+          () => mockPubDevChecker.getPackagePublishInfo(
+            packageName: any(named: 'packageName'),
+          ),
+        ).thenAnswer((invocation) async {
+          final packageName = invocation.namedArguments[#packageName] as String;
+          return PackagePublishInfo(
+            packageName: packageName,
+            waitsForPubDev: true,
+          );
+        });
+
+        when(
+          () => mockPubDevChecker.waitUntilVersionAvailable(
+            packageName: any(named: 'packageName'),
+            version: any(named: 'version'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer((_) async {});
+
+        final runner = CommandRunner<void>('test', 'do publish ticket')
+          ..addCommand(
+            makePublishCommand(
+              ggLog: ggLog,
+              ensureInRegistry: mockEnsureInRegistry,
+              ggDoPublish: mockGgDoPublish,
+              systemCommit: mockSystemCommit,
+              ggDoPush: mockGgDoPush,
+              unlocalizeRefs: mockUnlocalizeRefs,
+              localizeRefs: mockLocalizeRefs,
+              sortedProcessingList: mockSortedProcessingList,
+              processRunner: mockProcessRunner.call,
+              canPublishCommand: mockCanPublishCommand,
+              didReviewCommand: mockDidReviewCommand,
+              getVersionCommand: mockGetVersion,
+              setRefVersionCommand: mockSetRefVersion,
+              getRefVersionCommand: mockGetRefVersion,
+              pubDevChecker: mockPubDevChecker,
+              delay: (duration) async {
+                delayedDurations.add(duration);
+              },
+            ),
+          );
+        await runner.run(['publish', '--input', ticketDir.path, '--verbose']);
+
+        // Once per published repo (A and B) — a flat margin independent of
+        // whether the next repo actually depends on the one just released.
+        expect(delayedDurations, [
+          const Duration(seconds: 10),
+          const Duration(seconds: 10),
+        ]);
+      },
+    );
+
     test('waits on npm for a published TypeScript dependency', () async {
       // Make repo A a TypeScript project; B (Dart) depends on A.
       File(path.join(ticketDir.path, 'A', 'pubspec.yaml')).deleteSync();
@@ -6976,27 +7171,30 @@ void main() {
     });
 
     /// Builds the publish command in merge mode with all mocks wired up.
-    CommandRunner<void> buildRunner() =>
-        CommandRunner<void>('test', 'do merge ticket')..addCommand(
-          makePublishCommand(
-            ggLog: ggLog,
-            ensureInRegistry: mockEnsureInRegistry,
-            mergeOnly: true,
-            ggDoPublish: mockGgDoPublish,
-            systemCommit: mockSystemCommit,
-            ggDoPush: mockGgDoPush,
-            unlocalizeRefs: mockUnlocalizeRefs,
-            restorePublishTo: mockRestorePublishTo,
-            sortedProcessingList: mockSortedProcessingList,
-            processRunner: mockProcessRunner.call,
-            canPublishCommand: mockCanPublishCommand,
-            didReviewCommand: mockDidReviewCommand,
-            getVersionCommand: mockGetVersion,
-            setRefVersionCommand: mockSetRefVersion,
-            getRefVersionCommand: mockGetRefVersion,
-            pubDevChecker: mockPubDevChecker,
-          ),
-        );
+    CommandRunner<void> buildRunner({
+      Future<void> Function(Duration duration)? delay,
+    }) => CommandRunner<void>('test', 'do merge ticket')
+      ..addCommand(
+        makePublishCommand(
+          ggLog: ggLog,
+          ensureInRegistry: mockEnsureInRegistry,
+          mergeOnly: true,
+          ggDoPublish: mockGgDoPublish,
+          systemCommit: mockSystemCommit,
+          ggDoPush: mockGgDoPush,
+          unlocalizeRefs: mockUnlocalizeRefs,
+          restorePublishTo: mockRestorePublishTo,
+          sortedProcessingList: mockSortedProcessingList,
+          processRunner: mockProcessRunner.call,
+          canPublishCommand: mockCanPublishCommand,
+          didReviewCommand: mockDidReviewCommand,
+          getVersionCommand: mockGetVersion,
+          setRefVersionCommand: mockSetRefVersion,
+          getRefVersionCommand: mockGetRefVersion,
+          pubDevChecker: mockPubDevChecker,
+          delay: delay,
+        ),
+      );
 
     /// Writes a `pubspec_overrides.yaml` with [content] into repo [name].
     void writeOverrides(String name, String content) {
@@ -7123,6 +7321,21 @@ void main() {
       expect(messages.join('\n'), contains('All repos merged'));
       expect(messages.join('\n'), contains('The ticket stays in place'));
     });
+
+    test(
+      'does not settle after a merge-only run — nothing was published',
+      () async {
+        final delayedDurations = <Duration>[];
+
+        await buildRunner(
+          delay: (duration) async {
+            delayedDurations.add(duration);
+          },
+        ).run(['publish', '--input', ticketDir.path, '-v']);
+
+        expect(delayedDurations, isEmpty);
+      },
+    );
 
     test('refuses while a repo redirects refs to a working copy', () async {
       writeOverrides('B', 'dependency_overrides:\n  A:\n    path: ../A\n');
@@ -8209,12 +8422,17 @@ DoPublishCommand makePublishCommand({
   gg.InteractAdapter? interactAdapter,
   gg.HasTerminal? hasTerminal,
   DefaultBranch? defaultBranch,
+  Future<void> Function(Duration duration)? delay,
 }) {
   // The repositories of these tests are plain folders, so the real
   // `DefaultBranch` would find no branch at all. Unless a test brings its
   // own resolver, the default branch is `main` — the value the git stubs
   // of `_stubRepoSnapshot` are written for.
   defaultBranch ??= stubDefaultBranch('main');
+  // Unless a test cares about the settle delay itself, it must not actually
+  // sleep 10s per published repo — that would make every test using this
+  // helper needlessly slow.
+  delay ??= (_) async {};
   // The planner asks every question again now — a recorded answer is a
   // pre-selected default, not a reason to skip. These tests drive the flow,
   // not the prompts, so they run headless unless a test says otherwise: the
@@ -8321,6 +8539,7 @@ DoPublishCommand makePublishCommand({
     interactAdapter: interactAdapter ?? MockInteractAdapter(),
     hasTerminal: hasTerminal,
     defaultBranch: defaultBranch,
+    delay: delay,
   );
 }
 
