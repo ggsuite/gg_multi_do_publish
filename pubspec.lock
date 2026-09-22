@@ -181,18 +181,18 @@ packages:
     dependency: transitive
     description:
       name: dna_index
-      sha256: "34096b10958d2ea3722ffb7be5eae7537a4592175bba2abec823915cb73b664c"
+      sha256: "948a79e0d69153b86b1aed18476a0cd929108370aa4dff90385d97b28a13b904"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0"
+    version: "0.1.1"
   dna_install:
     dependency: transitive
     description:
       name: dna_install
-      sha256: ec338094ed3678c05eb55d8dd1106d09a82af55921089a1c98697ad20dcbf913
+      sha256: cbc9bdce9d6160c65e4ea625ca97413efd03cf95e18a0dc60dd506ac3706b245
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0"
+    version: "0.1.1"
   dna_readme:
     dependency: transitive
     description:
@@ -365,10 +365,10 @@ packages:
     dependency: transitive
     description:
       name: gg_merge
-      sha256: "1de63e6cf6850cf6c679277365bf35053f21e3d420c96e183236f077544207ec"
+      sha256: a8ee7164f02d6214c968914813d5b398401fd0fefb1240f40ecc12d97ce32878
       url: "https://pub.dev"
     source: hosted
-    version: "3.7.0"
+    version: "3.7.1"
   gg_multi_commit:
     dependency: "direct main"
     description:
@@ -381,10 +381,10 @@ packages:
     dependency: "direct main"
     description:
       name: gg_multi_core
-      sha256: b48abf629f267c90af90b49bc881182e2ab4c6c14d3bf3451291a4de066337d4
+      sha256: "3ba8c99934a2e24c4c2928fd19cb45731478ba1a0089af3e6d9c90fca83654ec"
       url: "https://pub.dev"
     source: hosted
-    version: "4.6.0"
+    version: "4.6.1"
   gg_one:
     dependency: "direct main"
     description:
@@ -485,10 +485,10 @@ packages:
     dependency: "direct dev"
     description:
       name: helix
-      sha256: "21f84973cf4c18ca001aea45cb33fe8aa1d0e17270aedf300cedd6cc9ec92078"
+      sha256: "0eb0407fddd8431dbdc50660deb00a98f9dcc01c6d51769d48e6d9351da2df92"
       url: "https://pub.dev"
     source: hosted
-    version: "1.7.1"
+    version: "1.9.0"
   http:
     dependency: transitive
     description:
