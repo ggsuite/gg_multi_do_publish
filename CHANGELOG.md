@@ -5,6 +5,7 @@
 ### Changed
 
 - gg do publish waits 10s after every repo publish before the next repo starts
+- upgrade dependencies
 
 ## 4.3.2 - 2026-09-14
 
