@@ -365,10 +365,10 @@ packages:
     dependency: transitive
     description:
       name: gg_merge
-      sha256: a8ee7164f02d6214c968914813d5b398401fd0fefb1240f40ecc12d97ce32878
+      sha256: b7ae1f9ea9868211a1af42179f6bde655af5171100b84cb6a83450d45b24650c
       url: "https://pub.dev"
     source: hosted
-    version: "3.7.1"
+    version: "3.7.2"
   gg_multi_commit:
     dependency: "direct main"
     description:
