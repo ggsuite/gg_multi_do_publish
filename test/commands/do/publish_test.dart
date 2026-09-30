@@ -4862,6 +4862,61 @@ void main() {
         isFalse,
       );
     });
+
+    test('retries a remote lookup the remote dropped', () async {
+      stubPublishFails();
+      stubHeadMoves('h0', 'h1');
+
+      // The snapshot reads origin/main, then the connection drops once at
+      // restore time and the retry reads the same hash again.
+      var remoteCalls = 0;
+      when(
+        () => m('git', [
+          'ls-remote',
+          'origin',
+          'refs/heads/main',
+        ], workingDirectory: any(named: 'workingDirectory')),
+      ).thenAnswer(
+        (_) async => remoteCalls++ == 1
+            ? ProcessResult(
+                0,
+                128,
+                '',
+                'Connection to github.com closed by remote host.',
+              )
+            : ProcessResult(0, 0, 'r0\trefs/heads/main', ''),
+      );
+      when(
+        () => m('git', [
+          'reset',
+          '--hard',
+          'h0',
+        ], workingDirectory: any(named: 'workingDirectory')),
+      ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
+
+      await expectLater(
+        () async => buildRunner().run([
+          'publish',
+          '--verbose',
+          '--input',
+          ticketDir.path,
+        ]),
+        throwsA(isA<Exception>()),
+      );
+
+      // The lookup was repeated and main had not moved: full restore.
+      expect(remoteCalls, 3);
+      verify(() => m('git', ['reset', '--hard', 'h0'], workingDirectory: dirA))
+          .called(1);
+      expect(
+        messages.any(
+          (msg) => msg.contains(
+            'git ls-remote origin refs/heads/main failed with a transient',
+          ),
+        ),
+        isTrue,
+      );
+    });
   });
 
   group('DoPublishCommand configure + resume', () {
@@ -8321,6 +8376,7 @@ DoPublishCommand makePublishCommand({
     interactAdapter: interactAdapter ?? MockInteractAdapter(),
     hasTerminal: hasTerminal,
     defaultBranch: defaultBranch,
+    gitRetry: GitRetry.example,
   );
 }
 
