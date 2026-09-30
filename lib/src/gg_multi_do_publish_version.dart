@@ -9,4 +9,4 @@
 // coverage:ignore-file
 
 /// The version of the `gg_multi_do_publish` package.
-const String ggMultiDoPublishVersion = '4.3.2';
+const String ggMultiDoPublishVersion = '4.4.0';
