@@ -151,6 +151,7 @@ class DoPublishCommand extends DirCommand<void> {
     gg.InteractAdapter? interactAdapter,
     gg.HasTerminal? hasTerminal,
     DefaultBranch? defaultBranch,
+    this._gitRetry = const GitRetry(),
   }) : _systemCommit = systemCommit ?? gg.GgSystemCommit(ggLog: ggLog),
        _ggDoUpgradeDeps = ggDoUpgradeDeps ?? gg.DoUpgradeDeps(ggLog: ggLog),
        _ggCanCommit = ggCanCommit ?? gg.CanCommit(ggLog: ggLog),
@@ -288,6 +289,9 @@ class DoPublishCommand extends DirCommand<void> {
 
   /// Runs shell commands such as branch deletion.
   final ProcessRunner _processRunner;
+
+  /// Retries a git network command the remote dropped.
+  final GitRetry _gitRetry;
 
   /// Resolves the repository's default branch — what `origin/HEAD` declares,
   /// falling back to `main`/`master` — so the snapshot, the merge-back and
@@ -1312,13 +1316,18 @@ class DoPublishCommand extends DirCommand<void> {
   }
 
   /// Returns the commit hash of `origin/<branch>` for [repoDir], or null
-  /// when the remote branch does not exist or cannot be queried.
+  /// when the remote branch does not exist or cannot be queried. A lookup
+  /// the remote drops is retried before it counts as »cannot be queried«.
   Future<String?> _remoteBranchHead(Directory repoDir, String branch) async {
-    final result = await _processRunner('git', <String>[
-      'ls-remote',
-      'origin',
-      'refs/heads/$branch',
-    ], workingDirectory: repoDir.path);
+    final result = await _gitRetry.run(
+      () => _processRunner('git', <String>[
+        'ls-remote',
+        'origin',
+        'refs/heads/$branch',
+      ], workingDirectory: repoDir.path),
+      ggLog: ggLog,
+      description: 'git ls-remote origin refs/heads/$branch',
+    );
     if (result.exitCode != 0) {
       return null;
     }

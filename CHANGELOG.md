@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.4.0 - 2026-09-30
+
+### Changed
+
+- Retry the remote branch lookup of the publish rollback on transient transport errors via gg_git's GitRetry
+
 ## 4.3.2 - 2026-09-14
 
 ### Changed
