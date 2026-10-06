@@ -4186,10 +4186,187 @@ void main() {
         messages.any(
           (msg) =>
               msg.contains('all commits were kept') &&
-              msg.contains('resumes the publish'),
+              msg.contains(
+                'version 1.1.0 is prepared, but neither merged into '
+                'origin/main nor uploaded yet',
+              ) &&
+              msg.contains('"gg do publish --continue" resumes the publish'),
         ),
         isTrue,
       );
+    });
+
+    group('names how far the release got', () {
+      /// Lets gg_one's publish of repo A fail after it recorded [state] —
+      /// the step file a real run leaves behind — with the version bumped
+      /// from 1.0.0 to 1.1.0, so the rollback keeps all commits. [pubspec] and
+      /// [packageJson] decide which registries A publishes to.
+      void stubFailedRelease(
+        String state, {
+        String pubspec = 'name: A\n',
+        String? packageJson,
+      }) {
+        when(
+          () => mockGgDoPublish.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            message: any(named: 'message'),
+            deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+            verbose: any(named: 'verbose'),
+            versionIncrement: any(named: 'versionIncrement'),
+            channel: any(named: 'channel'),
+            askBeforePublishing: any(named: 'askBeforePublishing'),
+            resume: any(named: 'resume'),
+            pr: any(named: 'pr'),
+            mergeOnly: any(named: 'mergeOnly'),
+            force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
+          ),
+        ).thenAnswer((_) async {
+          gg.publishStateFile(Directory(dirA))
+            ..createSync(recursive: true)
+            ..writeAsStringSync(state);
+          File(path.join(dirA, 'pubspec.yaml')).writeAsStringSync(pubspec);
+          if (packageJson != null) {
+            File(path.join(dirA, 'package.json'))
+                .writeAsStringSync(packageJson);
+          }
+          throw Exception('publish failed');
+        });
+        stubHeadMoves('h0', 'h1');
+        var versionCalls = 0;
+        when(() => mockGetVersion.get(directory: any(named: 'directory')))
+            .thenAnswer((_) async => versionCalls++ == 0 ? '1.0.0' : '1.1.0');
+      }
+
+      /// Runs the failing publish and returns the rollback warning.
+      Future<String> rollbackWarning() async {
+        await expectLater(
+          () async => buildRunner().run([
+            'publish',
+            '--verbose',
+            '--input',
+            ticketDir.path,
+          ]),
+          throwsA(isA<Exception>()),
+        );
+        return messages.firstWhere((m) => m.contains('all commits were kept'));
+      }
+
+      test('merged but not uploaded to npm', () async {
+        // The case that looked like a needless error: the pull request was
+        // merged, so »may already be published« read as »all done« — and
+        // the version never reached npm.
+        stubFailedRelease(
+          '{"doneSteps": ["prepare_version", "merge"]}',
+          pubspec: 'name: A\npublish_to: none\n',
+          packageJson: '{"name": "@org/a", "version": "1.1.0"}',
+        );
+
+        final warning = await rollbackWarning();
+
+        expect(
+          warning,
+          contains(
+            'version 1.1.0 is merged into origin/main, but NOT uploaded to '
+            'npm yet',
+          ),
+        );
+        expect(warning, isNot(contains('may already be published')));
+      });
+
+      test('a hybrid on pub.dev but not yet on npm', () async {
+        stubFailedRelease(
+          '{"doneSteps": ["prepare_version", "merge", '
+          '"publish_registry_pub_dev"]}',
+          packageJson: '{"name": "@org/a", "version": "1.1.0"}',
+        );
+
+        expect(
+          await rollbackWarning(),
+          contains(
+            'version 1.1.0 is merged into origin/main, is on pub.dev, but NOT '
+            'uploaded to npm yet',
+          ),
+        );
+      });
+
+      test('uploaded everywhere, only the tag is missing', () async {
+        stubFailedRelease(
+          '{"doneSteps": ["prepare_version", "merge", '
+          '"publish_registry_pub_dev"]}',
+        );
+
+        expect(
+          await rollbackWarning(),
+          contains(
+            'version 1.1.0 is merged into origin/main and on pub.dev — only '
+            'the version tag is missing',
+          ),
+        );
+      });
+
+      test('a git-only package that is merged', () async {
+        stubFailedRelease(
+          '{"doneSteps": ["prepare_version", "merge"]}',
+          pubspec: 'name: A\npublish_to: none\n',
+        );
+
+        expect(
+          await rollbackWarning(),
+          contains(
+            'version 1.1.0 is merged into origin/main — only the version tag '
+            'is missing',
+          ),
+        );
+      });
+
+      test('trusts a moved origin/main over a missing merge marker', () async {
+        // The provider merged the pull request just before the run died.
+        stubFailedRelease('{"doneSteps": ["prepare_version"]}');
+        var remoteCalls = 0;
+        when(
+          () => m('git', [
+            'ls-remote',
+            'origin',
+            'refs/heads/main',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer(
+          (_) async => ProcessResult(
+            0,
+            0,
+            remoteCalls++ == 0 ? 'r0\trefs/heads/main' : 'r9\trefs/heads/main',
+            '',
+          ),
+        );
+
+        expect(
+          await rollbackWarning(),
+          contains('origin/main already received the release'),
+        );
+      });
+
+      for (final (name, state) in [
+        (
+          'an older gg wrote a single registry marker',
+          '{"doneSteps": '
+              '["prepare_version", "merge", "publish_registry"]}',
+        ),
+        ('the step file is unreadable', '{'),
+      ]) {
+        test('stays vague when $name', () async {
+          stubFailedRelease(state);
+
+          expect(
+            await rollbackWarning(),
+            contains(
+              'version 1.1.0 is already prepared and may already be '
+              'published to the registry',
+            ),
+          );
+        });
+      }
     });
 
     test('checks out the feature branch and keeps commits when origin/main '

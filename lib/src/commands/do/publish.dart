@@ -1519,6 +1519,60 @@ class DoPublishCommand extends DirCommand<void> {
     }
   }
 
+  /// Says how far the failed gg_one publish of [repoDir] got, read from the
+  /// step markers it recorded — or null when they cannot tell.
+  ///
+  /// »may already be published« made a release that stopped between merge
+  /// and upload look finished: the pull request was merged, so the user took
+  /// the warning for noise, never resumed, and the version never reached its
+  /// registry. The markers know which registries accepted the upload, so the
+  /// warning names exactly what is still missing.
+  Future<String?> _releaseProgress({
+    required Directory repoDir,
+    required String? version,
+    required String? mainBranch,
+    required bool remoteMainMoved,
+  }) async {
+    try {
+      final state = gg.loadRepoPublishFiles(repoDir).state;
+      // An older gg's single registry marker cannot say which registry it
+      // reached, and without any marker there is nothing to read.
+      if (!state.hasStepProgress || state.hasLegacyRegistryStep) return null;
+
+      final v = 'version ${version ?? '?'}';
+      final main = 'origin/${mainBranch ?? 'main'}';
+
+      if (!state.isStepDone('merge')) {
+        // A provider that merged the pull request just before the run died
+        // leaves no marker — the moved remote says more than the marker.
+        if (remoteMainMoved) return null;
+        return '$v is prepared, but neither merged into $main nor uploaded '
+            'yet';
+      }
+
+      final targets = (await gg_lang.publishTargetsOf(repoDir)).ordered;
+      final uploaded = [
+        for (final t in targets)
+          if (state.isStepDone(gg.publishRegistryStep(t))) t.id,
+      ];
+      final missing = [
+        for (final t in targets)
+          if (!state.isStepDone(gg.publishRegistryStep(t))) t.id,
+      ];
+
+      if (missing.isEmpty) {
+        final on = uploaded.isEmpty ? '' : ' and on ${uploaded.join(' and ')}';
+        return '$v is merged into $main$on — only the version tag is missing';
+      }
+
+      final on = uploaded.isEmpty ? '' : ', is on ${uploaded.join(' and ')}';
+      return '$v is merged into $main$on, but NOT uploaded to '
+          '${missing.join(' and ')} yet';
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Brings the repository back to its snapshot after a failed publish.
   ///
   /// Two modes, because a publish has effects that must not be undone: when the
@@ -1620,20 +1674,30 @@ class DoPublishCommand extends DirCommand<void> {
         remoteFeatureNow != null && remoteFeatureNow != s.remoteFeatureHead;
 
     if (versionBumped || remoteMainMoved || featurePushed) {
+      final progress = versionBumped
+          ? await _releaseProgress(
+              repoDir: repoDir,
+              version: versionNow,
+              mainBranch: s.mainBranch,
+              remoteMainMoved: remoteMainMoved,
+            )
+          : null;
       final String reason;
-      if (versionBumped) {
+      if (progress != null) {
+        reason = progress;
+      } else if (remoteMainMoved) {
+        reason = 'origin/${s.mainBranch} already received the release';
+      } else if (versionBumped) {
         reason =
             'version ${versionNow ?? '?'} is already prepared and may '
             'already be published to the registry';
-      } else if (remoteMainMoved) {
-        reason = 'origin/${s.mainBranch} already received the release';
       } else {
         reason = 'the feature branch was already pushed to origin';
       }
       ggLog(
         cWarn(
           '$repoName: back on ${s.branch}, but all commits were kept '
-          'because $reason. Re-running "$_command" resumes the $_action.',
+          'because $reason. "$_command --continue" resumes the $_action.',
         ),
       );
       return;

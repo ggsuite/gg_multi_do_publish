@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.4.1 - 2026-10-06
+
+### Changed
+
+- Name how far a failed release got in the rollback warning
+- Upgrade_dependencies
+
 ## 4.4.0 - 2026-09-30
 
 ### Changed

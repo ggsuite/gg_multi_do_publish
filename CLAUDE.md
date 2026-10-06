@@ -74,6 +74,7 @@ Every interactive decision is made before the first irreversible step. The answe
 
 - **Full restore** — only when provably nothing irreversible happened: end merges/rebases, back to the feature branch, `reset --hard`, restore the local main position, delete tags the run created, re-apply stashed changes with `--index`. Also deletes the repo-level step file (gitignored, survives `reset --hard`, but its markers would describe removed commits).
 - **Cleanup restore** — otherwise, **keep all commits** so `--continue` resumes via gg_one's step file. Entered on any of: a _committed_ version bump (an uncommitted version change is recoverable and full-restores), `origin/main` having moved, or the feature branch already pushed. Remote comparisons only conclude "moved" from a concrete differing hash — an unreachable `git ls-remote` is treated as _unknown_, never as "already released". The lookup (`_remoteBranchHead`) runs through gg_git's `GitRetry`, so a connection the remote merely dropped is asked again (5 s / 15 s / 45 s) before it counts as unreachable.
+  The warning of a cleanup restore names **how far the release got**, read from gg_one's step markers (`_releaseProgress`): »prepared, but neither merged nor uploaded«, »merged into origin/main, but NOT uploaded to npm yet«, »merged and on pub.dev — only the version tag is missing«, and ends with `gg do publish --continue`. The old »may already be published to the registry« made a release that stopped between merge and upload look finished — the PR was merged, the warning read as noise, nobody resumed, and the version never reached npm. The vague wording stays only where the markers cannot tell (none, unreadable, an older gg's single `publish_registry` marker); a missing merge marker next to a moved `origin/main` defers to »origin/main already received the release«.
 
 The publish failure always stays the primary error; restore problems are logged with a manual-recovery hint (checkout/reset commands and the stash hash).
 
@@ -125,3 +126,19 @@ four places:
 
 `NpmRegistryChecker` resolves its status page from the merged `.npmrc`, so a
 scoped package on a private feed no longer gets an npmjs.com link that 404s.
+
+<!-- helix:claude_md:start -->
+
+# gg workflow
+
+This repo is developed ticket by ticket with the `gg` CLI. Follow the
+development guide, it tells you when to ask the user and which command
+comes next:
+
+@doc/guides/for-ai/ai-dev-guide.md
+
+The steps are also available as skills: `/gg-ticket`, `/gg-commit`,
+`/gg-push`, `/gg-publish`, `/gg-cleanup`. `/gg` lists them and says which
+one comes next.
+
+<!-- helix:claude_md:end -->
