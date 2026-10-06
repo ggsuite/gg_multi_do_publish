@@ -92,6 +92,7 @@ class StubPlanner extends PublishPlanner {
     required String seedMessage,
     gg.RepoPublishConfig? existing,
     bool mergeOnly = false,
+    bool onlyMissing = false,
   }) => _configurator.configureRepo(
     repoDir: repoDir,
     seedMessage: seedMessage,

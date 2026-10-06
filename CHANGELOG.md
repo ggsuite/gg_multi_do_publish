@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Accept onlyMissing in the test planner stub
+
 ## 4.4.0 - 2026-09-30
 
 ### Changed
