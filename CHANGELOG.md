@@ -5,6 +5,7 @@
 ### Changed
 
 - Name how far a failed release got in the rollback warning
+- Upgrade_dependencies
 
 ## 4.4.0 - 2026-09-30
 
