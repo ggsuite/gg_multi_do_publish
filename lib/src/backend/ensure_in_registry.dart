@@ -107,6 +107,18 @@ class EnsureInRegistry {
     ggLog(cCmd('  cd ${directory.absolute.path}'));
     ggLog(cCmd('  ${await _publishCommand(directory, target)}'));
 
+    // A manual first publish lands on the user's personal pub.dev account —
+    // the package has to be moved to its organization by hand.
+    if (target == PublishTarget.pubDev) {
+      ggLog(
+        cWarn(
+          'Afterwards set the publisher to the right organization: open '
+          'https://pub.dev/packages/$name/admin and use '
+          '»Transfer to publisher«.',
+        ),
+      );
+    }
+
     while (true) {
       ggLog(
         cAction('Press ⏎ once the package is published, »q« + ⏎ to abort.'),

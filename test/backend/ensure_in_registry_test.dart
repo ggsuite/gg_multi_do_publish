@@ -133,6 +133,14 @@ void main() {
         expect(log, contains('dart pub publish'));
         expect(
           log,
+          contains(
+            'Afterwards set the publisher to the right organization: open '
+            'https://pub.dev/packages/test_pkg/admin and use '
+            '»Transfer to publisher«.',
+          ),
+        );
+        expect(
+          log,
           contains('Press ⏎ once the package is published, »q« + ⏎ to abort.'),
         );
         expect(
@@ -220,6 +228,7 @@ void main() {
           contains('»@org/test_pkg« has no version published on npm yet.'),
         );
         expect(log, contains('pnpm publish --no-git-checks --access public'));
+        expect(log, isNot(contains('Transfer to publisher')));
       });
 
       test('shows a plain pnpm command for an unscoped npm package', () async {
