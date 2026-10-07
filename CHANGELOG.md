@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.4.3 - 2026-10-07
+
+### Changed
+
+- Hint to set the pub.dev publisher after a manual first publish
+
 ## 4.4.2 - 2026-10-07
 
 ### Changed
