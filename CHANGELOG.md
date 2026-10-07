@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.4.2 - 2026-10-07
+
+### Changed
+
+- gg do publish waits 10s after every repo publish before the next repo starts
+
 ## 4.4.1 - 2026-10-06
 
 ### Changed

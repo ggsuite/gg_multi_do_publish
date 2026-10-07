@@ -152,6 +152,7 @@ class DoPublishCommand extends DirCommand<void> {
     gg.HasTerminal? hasTerminal,
     DefaultBranch? defaultBranch,
     this._gitRetry = const GitRetry(),
+    Future<void> Function(Duration duration)? delay,
   }) : _systemCommit = systemCommit ?? gg.GgSystemCommit(ggLog: ggLog),
        _ggDoUpgradeDeps = ggDoUpgradeDeps ?? gg.DoUpgradeDeps(ggLog: ggLog),
        _ggCanCommit = ggCanCommit ?? gg.CanCommit(ggLog: ggLog),
@@ -187,7 +188,10 @@ class DoPublishCommand extends DirCommand<void> {
        // coverage:ignore-end
        _hasTerminal = hasTerminal ?? gg.defaultHasTerminal,
        _defaultBranch = defaultBranch ?? DefaultBranch(ggLog: ggLog),
-       _processRunner = processRunner ?? defaultProcessRunner {
+       _processRunner = processRunner ?? defaultProcessRunner,
+       // coverage:ignore-start
+       _delay = delay ?? ((duration) => Future<void>.delayed(duration)) {
+    // coverage:ignore-end
     _addArgs();
   }
 
@@ -297,6 +301,19 @@ class DoPublishCommand extends DirCommand<void> {
   /// falling back to `main`/`master` — so the snapshot, the merge-back and
   /// the rollback work on `develop` exactly as on `main`.
   final DefaultBranch _defaultBranch;
+
+  /// Waits [duration] before the next repo in the ticket starts publishing.
+  /// Injectable so tests need not actually sleep.
+  final Future<void> Function(Duration duration) _delay;
+
+  /// Safety buffer after every repo's publish, before the next repo in the
+  /// ticket starts — independent of whether it depends on the package just
+  /// released. [PubDevChecker]/[NpmRegistryChecker] already wait for a
+  /// dependent repo's specific version to become visible; this is a flat
+  /// margin on top, because a registry can report a version as visible while
+  /// it is still propagating (the same class of race pnpm guards against
+  /// with `minimumReleaseAge`).
+  static const Duration _publishSettleDelay = Duration(seconds: 10);
 
   @override
   Future<void> exec({
@@ -627,6 +644,11 @@ class DoPublishCommand extends DirCommand<void> {
           ggLog: ggLog,
           taskLog: taskLog,
         );
+
+        // A merge-only run uploads nothing to a registry — nothing to settle.
+        if (!isMergeOnly) {
+          await _delay(_publishSettleDelay);
+        }
       }
 
       // Capture the published version + registry visibility so later repos
