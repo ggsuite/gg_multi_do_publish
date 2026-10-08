@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Check the localized refs again after the push of a merge-only publish
+
 ## 4.4.3 - 2026-10-07
 
 ### Changed
