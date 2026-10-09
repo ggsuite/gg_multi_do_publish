@@ -6714,6 +6714,7 @@ void main() {
       // and the run still completes.
       final log = messages.join('\n');
       expect(log, contains('workspace state could not be restored'));
+      expect(log, contains('run gg do localize in the ticket'));
       expect(log, contains('All repos published'));
     });
 
@@ -7597,6 +7598,56 @@ void main() {
         ),
       );
     });
+
+    test(
+      'refuses refs the ticket checks localized after the main merge',
+      () async {
+        // do push merges main in, which can add an edge it then localizes.
+        when(
+          () => mockCanPublishCommand.checkTicket(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            verbose: any(named: 'verbose'),
+            pana: any(named: 'pana'),
+            includeCanPublish: any(named: 'includeCanPublish'),
+            mergeOnly: any(named: 'mergeOnly'),
+          ),
+        ).thenAnswer((_) async {
+          writeOverrides('B', 'dependency_overrides:\n  A:\n    path: ../A\n');
+        });
+
+        await expectLater(
+          () => buildRunner().run(['publish', '--input', ticketDir.path]),
+          throwsA(
+            isA<Exception>().having(
+              (e) => rmControls(e.toString()),
+              'message',
+              contains('These projects depend on other local projects: B'),
+            ),
+          ),
+        );
+
+        // Nothing was merged to main.
+        verifyNever(
+          () => mockGgDoPublish.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            message: any(named: 'message'),
+            deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+            verbose: any(named: 'verbose'),
+            versionIncrement: any(named: 'versionIncrement'),
+            channel: any(named: 'channel'),
+            askBeforePublishing: any(named: 'askBeforePublishing'),
+            resume: any(named: 'resume'),
+            pr: any(named: 'pr'),
+            mergeOnly: any(named: 'mergeOnly'),
+            force: any(named: 'force'),
+            upgrade: any(named: 'upgrade'),
+            options: any(named: 'options'),
+          ),
+        );
+      },
+    );
 
     test('--force merges despite localized refs', () async {
       writeOverrides('B', 'dependency_overrides:\n  A:\n    path: ../A\n');

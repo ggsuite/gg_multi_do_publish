@@ -494,6 +494,11 @@ class DoPublishCommand extends DirCommand<void> {
 
         throw Exception(cDetail('Cannot publish.'));
       }
+
+      // The push above may have localized a new edge the main merge brought.
+      if (isMergeOnly && !force) {
+        _throwOnLocalizedRefs(subs);
+      }
     }
 
     // Step 5: Plan the run. Only now is the state up to date — »do push« has
@@ -1204,8 +1209,8 @@ class DoPublishCommand extends DirCommand<void> {
           '⚠️ $repoName is $_done, but its workspace state could not be '
           'restored: $e\n'
           'Restore it manually: check the feature branch out and run '
-          '${cCmd('gg do add ${path.basename(repoDir.path)}')} in the '
-          'ticket to re-localize the references.',
+          '${cCmd('gg do localize')} in the ticket to localize the '
+          'references again.',
         ),
       );
     }
