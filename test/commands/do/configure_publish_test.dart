@@ -385,7 +385,7 @@ void main() {
       expect(config['A']!.mergeMessage, 'The change');
       expect(config['B']!.mergeMessage, isNull);
       expect(capturedInitials, ['The change']);
-      expect(messages.join('\n'), contains('Not published. Nothing changed.'));
+      expect(messages.join('\n'), contains('✓ Nothing changed.'));
     });
 
     test('refuses to clobber the progress of an unfinished publish', () async {
