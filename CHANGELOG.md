@@ -5,6 +5,11 @@
 ### Changed
 
 - Check the localized refs again after the push of a merge-only publish
+## 4.4.4 - 2026-10-14
+
+### Changed
+
+- Expect the shorter publish skip line in the tests
 
 ## 4.4.3 - 2026-10-07
 
