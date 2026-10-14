@@ -6586,11 +6586,7 @@ void main() {
 
       expect(messages[0], 'Publishing ...');
 
-      expect(messages[1].split('\n'), [
-        '',
-        'A',
-        '✓ Not published. Nothing changed.',
-      ]);
+      expect(messages[1].split('\n'), ['', 'A', '✓ Nothing changed.']);
 
       expect(messages[2].split('\n'), ['', 'B']);
 
