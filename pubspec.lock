@@ -378,49 +378,49 @@ packages:
       path: "../gg_multi_commit"
       relative: true
     source: path
-    version: "4.6.2"
+    version: "4.7.0"
   gg_multi_core:
     dependency: "direct main"
     description:
       path: "../gg_multi_core"
       relative: true
     source: path
-    version: "4.9.4"
+    version: "4.10.0"
   gg_one:
     dependency: "direct main"
     description:
       path: "../gg_one"
       relative: true
     source: path
-    version: "14.4.8"
+    version: "14.4.9"
   gg_one_commit:
     dependency: "direct overridden"
     description:
       path: "../gg_one_commit"
       relative: true
     source: path
-    version: "2.8.3"
+    version: "2.8.4"
   gg_one_core:
     dependency: "direct overridden"
     description:
       path: "../gg_one_core"
       relative: true
     source: path
-    version: "2.12.1"
+    version: "2.13.0"
   gg_one_do_publish:
     dependency: "direct overridden"
     description:
       path: "../gg_one_do_publish"
       relative: true
     source: path
-    version: "2.11.4"
+    version: "2.11.5"
   gg_one_merge:
     dependency: "direct overridden"
     description:
       path: "../gg_one_merge"
       relative: true
     source: path
-    version: "2.7.5"
+    version: "2.7.6"
   gg_process:
     dependency: "direct main"
     description:
