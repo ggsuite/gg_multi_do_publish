@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.4.7 - 2026-10-19
+
+### Changed
+
+- Check stdin and stdout before asking
+
 ## 4.4.6 - 2026-10-16
 
 ## 4.4.5 - 2026-10-14
