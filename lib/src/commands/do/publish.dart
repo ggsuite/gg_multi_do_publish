@@ -186,7 +186,7 @@ class DoPublishCommand extends DirCommand<void> {
        // coverage:ignore-start
        _interactAdapter = interactAdapter ?? gg.DefaultInteractAdapter(),
        // coverage:ignore-end
-       _hasTerminal = hasTerminal ?? gg.defaultHasTerminal,
+       _hasTerminal = hasTerminal ?? gg.stdioHasTerminal,
        _defaultBranch = defaultBranch ?? DefaultBranch(ggLog: ggLog),
        _processRunner = processRunner ?? defaultProcessRunner,
        // coverage:ignore-start
@@ -287,8 +287,8 @@ class DoPublishCommand extends DirCommand<void> {
   /// which every repo was already published.
   final gg.InteractAdapter _interactAdapter;
 
-  /// Whether stdin is a terminal — without one the cleanup offer is skipped
-  /// and the ticket is kept.
+  /// Whether stdin and stdout are a terminal — without one the cleanup
+  /// offer is skipped and the ticket is kept.
   final gg.HasTerminal _hasTerminal;
 
   /// Runs shell commands such as branch deletion.
@@ -785,8 +785,8 @@ class DoPublishCommand extends DirCommand<void> {
   /// Uses the same cursor-key prompt as the version-increment selection, and
   /// is asked in the same phase: every interactive decision of a run is made
   /// before the first irreversible step. Returns false without asking when
-  /// stdin is no terminal — a headless run must never trash a ticket on its
-  /// own.
+  /// stdin or stdout is no terminal — a headless run must never trash a
+  /// ticket on its own.
   Future<bool> _offerTicketCleanup({required String ticketName}) async {
     if (!_hasTerminal()) {
       return false;

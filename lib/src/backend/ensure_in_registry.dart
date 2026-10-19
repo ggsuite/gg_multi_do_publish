@@ -37,7 +37,7 @@ class EnsureInRegistry {
     gg.HasTerminal? hasTerminal,
   }) : _isInRegistry = isInRegistry ?? IsInRegistry(ggLog: ggLog),
        _readLineFromStdIn = readLineFromStdIn ?? stdin.readLineSync,
-       _hasTerminal = hasTerminal ?? gg.defaultHasTerminal;
+       _hasTerminal = hasTerminal ?? gg.stdioHasTerminal;
 
   /// Checks whether the package has at least one version on its registry.
   final IsInRegistry _isInRegistry;
@@ -49,7 +49,7 @@ class EnsureInRegistry {
   /// Reads the user's confirmation from stdin.
   final ReadLineFromStdIn _readLineFromStdIn;
 
-  /// Whether stdin is attached to a terminal.
+  /// Whether stdin and stdout are attached to a terminal.
   final gg.HasTerminal _hasTerminal;
 
   // ...........................................................................

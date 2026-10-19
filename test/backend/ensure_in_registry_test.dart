@@ -195,7 +195,7 @@ void main() {
         );
       });
 
-      test('throws when stdin is not a terminal', () async {
+      test('throws when there is no terminal', () async {
         mockInRegistry([false]);
 
         await expectLater(

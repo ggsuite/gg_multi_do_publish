@@ -7035,26 +7035,23 @@ void main() {
         expect(coloredMessages, contains(cCmd('  gg do rm ticket TICKPB')));
       });
 
-      test(
-        'keeps the ticket without asking when stdin is no terminal',
-        () async {
-          stubSkipCheck({'A', 'B'});
-          final adapter = MockInteractAdapter();
+      test('keeps the ticket without asking without a terminal', () async {
+        stubSkipCheck({'A', 'B'});
+        final adapter = MockInteractAdapter();
 
-          await buildRunner(
-            interactAdapter: adapter,
-            hasTerminal: () => false,
-          ).run(['publish', '--input', ticketDir.path]);
+        await buildRunner(
+          interactAdapter: adapter,
+          hasTerminal: () => false,
+        ).run(['publish', '--input', ticketDir.path]);
 
-          verifyNever(
-            () => adapter.choose(
-              message: any(named: 'message'),
-              options: any(named: 'options'),
-            ),
-          );
-          expect(ticketDir.existsSync(), isTrue);
-        },
-      );
+        verifyNever(
+          () => adapter.choose(
+            message: any(named: 'message'),
+            options: any(named: 'options'),
+          ),
+        );
+        expect(ticketDir.existsSync(), isTrue);
+      });
 
       test('does not ask again when the answer is already recorded', () async {
         // A run that failed after the question left `delete_ticket` behind.
