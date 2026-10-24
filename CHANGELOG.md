@@ -2,13 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- Add the blog post of ticket gg-1
+
 ### Changed
 
 - Check the colored messages also under NO_COLOR
 - Tighten the dependency constraints explicitly on publish
-
-The per-repo upgrade passes tighten: true, the only place a ticket tightens
-Upgrade the dependencies
 
 ## 4.4.7 - 2026-10-19
 
