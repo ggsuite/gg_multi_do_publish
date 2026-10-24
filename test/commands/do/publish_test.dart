@@ -1922,6 +1922,10 @@ void main() {
     test(
       'aborts on gg do publish failure for specific repo and keeps folder',
       () async {
+        // Colors on, so the comparisons see every escape sequence — with
+        // NO_COLOR a color function returns the plain text.
+        ggColorsEnabled = true;
+        addTearDown(() => ggColorsEnabled = null);
         final mockGgDoPublish = MockGgDoPublish();
         final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();
@@ -7903,6 +7907,7 @@ void main() {
         () => mockUpgradeDeps.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          tighten: true,
         ),
       ).thenAnswer((i) async => calls.add('upgrade:${repoOf(i)}'));
 
@@ -8348,6 +8353,7 @@ void main() {
         () => mockUpgradeDeps.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          tighten: true,
         ),
       ).thenAnswer((i) async {
         calls.add('upgrade:${repoOf(i)}');
@@ -8743,6 +8749,7 @@ DoPublishCommand makePublishCommand({
       () => mock.exec(
         directory: any(named: 'directory'),
         ggLog: any(named: 'ggLog'),
+        tighten: true,
       ),
     ).thenAnswer((_) async {});
     ggDoUpgradeDeps = mock;

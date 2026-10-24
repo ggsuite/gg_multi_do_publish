@@ -984,11 +984,18 @@ class DoPublishCommand extends DirCommand<void> {
     // Upgrade the dependencies and re-verify with `gg can commit` before
     // anything is published. The refs point at the registry again, so
     // »dart pub upgrade --tighten« resolves against the sibling versions
-    // published earlier in this run. gg_one's `can publish` runs no
-    // analyze/format/tests — without this step the post-upgrade state
-    // would never be validated. Output stays visible.
+    // published earlier in this run. This is the only place the ticket's
+    // constraints are tightened — `do push` and `do review` upgrade without
+    // it, because the overrides would make pub tighten against the local
+    // checkouts. gg_one's `can publish` runs no analyze/format/tests —
+    // without this step the post-upgrade state would never be validated.
+    // Output stays visible.
     if (!skipValidation) {
-      await _ggDoUpgradeDeps.exec(directory: repoDir, ggLog: ggLog);
+      await _ggDoUpgradeDeps.exec(
+        directory: repoDir,
+        ggLog: ggLog,
+        tighten: true,
+      );
       await _ggCanCommit.exec(directory: repoDir, ggLog: ggLog);
     }
 

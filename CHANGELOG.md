@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Add the blog post of ticket gg-1
+
+### Changed
+
+- Check the colored messages also under NO_COLOR
+- Tighten the dependency constraints explicitly on publish
+
 ## 4.4.7 - 2026-10-19
 
 ### Changed

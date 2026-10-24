@@ -6,6 +6,7 @@
 
 import 'dart:io';
 
+import 'package:gg_console_colors/gg_console_colors.dart';
 import 'package:gg_multi_do_publish/src/backend/ensure_in_registry.dart';
 import 'package:gg_lang/gg_lang.dart';
 import 'package:gg_publish/gg_publish.dart';
@@ -150,6 +151,10 @@ void main() {
       });
 
       test('shows the shell commands in blue', () async {
+        // Colors on, so the comparison sees the escape sequence — with
+        // NO_COLOR a color function returns the plain text.
+        ggColorsEnabled = true;
+        addTearDown(() => ggColorsEnabled = null);
         mockInRegistry([false, true]);
 
         await ensureInRegistry(answers: [''])
