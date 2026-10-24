@@ -5,8 +5,10 @@
 ### Changed
 
 - Check the colored messages also under NO_COLOR
+- Tighten the dependency constraints explicitly on publish
 
-The tests of the blue registry commands and of a failed publish turn the colors on
+The per-repo upgrade passes tighten: true, the only place a ticket tightens
+Upgrade the dependencies
 
 ## 4.4.7 - 2026-10-19
 

@@ -7907,6 +7907,7 @@ void main() {
         () => mockUpgradeDeps.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          tighten: true,
         ),
       ).thenAnswer((i) async => calls.add('upgrade:${repoOf(i)}'));
 
@@ -8352,6 +8353,7 @@ void main() {
         () => mockUpgradeDeps.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
+          tighten: true,
         ),
       ).thenAnswer((i) async {
         calls.add('upgrade:${repoOf(i)}');
@@ -8747,6 +8749,7 @@ DoPublishCommand makePublishCommand({
       () => mock.exec(
         directory: any(named: 'directory'),
         ggLog: any(named: 'ggLog'),
+        tighten: true,
       ),
     ).thenAnswer((_) async {});
     ggDoUpgradeDeps = mock;
