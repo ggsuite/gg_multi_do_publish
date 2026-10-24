@@ -1922,6 +1922,10 @@ void main() {
     test(
       'aborts on gg do publish failure for specific repo and keeps folder',
       () async {
+        // Colors on, so the comparisons see every escape sequence — with
+        // NO_COLOR a color function returns the plain text.
+        ggColorsEnabled = true;
+        addTearDown(() => ggColorsEnabled = null);
         final mockGgDoPublish = MockGgDoPublish();
         final mockSystemCommit = MockGgSystemCommit();
         final mockGgDoPush = MockGgDoPush();

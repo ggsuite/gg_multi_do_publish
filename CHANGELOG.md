@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Check the colored messages also under NO_COLOR
+
+The tests of the blue registry commands and of a failed publish turn the colors on
+
 ## 4.4.7 - 2026-10-19
 
 ### Changed
