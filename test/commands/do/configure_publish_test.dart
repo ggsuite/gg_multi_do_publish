@@ -139,6 +139,9 @@ void main() {
             capturedInitials.add(initial);
             return initial;
           },
+      // No editor: the questions are asked one by one, by the stubs above.
+      editText: ({required prompt, required text, required fileName}) async =>
+          null,
     );
   }
 

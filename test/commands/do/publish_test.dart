@@ -82,7 +82,13 @@ class StubPlanner extends PublishPlanner {
     super.publishedVersion,
     super.readManifestVersion,
     super.hasTerminal,
-  });
+  }) : super(
+         editText: ({
+           required prompt,
+           required text,
+           required fileName,
+         }) async => null,
+       );
 
   final RepoConfigurator _configurator;
 
