@@ -8,8 +8,10 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:gg_local_package_dependencies/gg_local_package_dependencies.dart';
+import 'package:gg_log/gg_log.dart';
 import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
+import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:gg_one/gg_one.dart' as gg;
 import 'package:gg_status_printer/gg_status_printer.dart';
 import 'package:mocktail/mocktail.dart';
@@ -30,6 +32,8 @@ class MockSortedProcessingList extends Mock implements SortedProcessingList {}
 class MockDidCommitCommand extends Mock implements DidCommitCommand {}
 
 class MockDoPushCommand extends Mock implements DoPushCommand {}
+
+class MockTicketLocalizer extends Mock implements TicketLocalizer {}
 
 class FakeDirectory extends Fake implements Directory {}
 
@@ -1144,6 +1148,7 @@ void main() {
     late MockProcessRunner mockProcessRunner;
     late MockDidCommitCommand mockDidCommitCommand;
     late MockDoPushCommand mockDoPushCommand;
+    late MockTicketLocalizer mockTicketLocalizer;
 
     /// A command whose collaborators all succeed, so a test only has to
     /// override the one it is about.
@@ -1156,6 +1161,7 @@ void main() {
       processRunner: mockProcessRunner.call,
       didCommitCommand: mockDidCommitCommand,
       doPushCommand: mockDoPushCommand,
+      ticketLocalizer: mockTicketLocalizer,
     );
 
     Directory repoDir(String name) =>
@@ -1169,6 +1175,7 @@ void main() {
       mockProcessRunner = MockProcessRunner();
       mockDidCommitCommand = MockDidCommitCommand();
       mockDoPushCommand = MockDoPushCommand();
+      mockTicketLocalizer = MockTicketLocalizer();
 
       when(
         () => mockSortedProcessingList.get(
@@ -1222,9 +1229,100 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
         ),
+        () => mockTicketLocalizer.throwWhenReposMissing(
+          ticketDir: any(named: 'ticketDir'),
+          ggLog: any(named: 'ggLog'),
+        ),
       ]) {
         when(stub).thenAnswer((_) async {});
       }
+    });
+
+    group('missing repos', () {
+      test('are looked for after the push, in the ticket folder', () async {
+        await command().checkTicket(
+          directory: ticketDir,
+          ggLog: ggLog,
+          includeCanPublish: false,
+        );
+
+        verifyInOrder([
+          () => mockDoPushCommand.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            upgrade: false,
+          ),
+          () => mockTicketLocalizer.throwWhenReposMissing(
+            ticketDir: any(
+              named: 'ticketDir',
+              that: predicate<Directory>(
+                (d) => path.equals(d.path, ticketDir.path),
+              ),
+            ),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ]);
+        expect(
+          messages.any((m) => m.contains('All repos in the ticket?')),
+          isTrue,
+        );
+      });
+
+      test('stop the check before anything else runs', () async {
+        when(
+          () => mockTicketLocalizer.throwWhenReposMissing(
+            ticketDir: any(named: 'ticketDir'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer((invocation) async {
+          final log = invocation.namedArguments[#ggLog] as GgLog;
+          log('Run gg do add x to add them.');
+          throw Exception('The ticket lacks the repositories x.');
+        });
+
+        await expectLater(
+          command().checkTicket(
+            directory: ticketDir,
+            ggLog: ggLog,
+            includeCanPublish: false,
+          ),
+          throwsA(
+            isA<Exception>().having(
+              (e) => '$e',
+              'message',
+              contains('The ticket lacks the repositories x.'),
+            ),
+          ),
+        );
+        verifyNever(
+          () => mockGgCanMerge.exec(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        );
+        // Shown without --verbose.
+        expect(messages, contains('Run gg do add x to add them.'));
+      });
+
+      test('show their warnings without --verbose', () async {
+        when(
+          () => mockTicketLocalizer.throwWhenReposMissing(
+            ticketDir: any(named: 'ticketDir'),
+            ggLog: any(named: 'ggLog'),
+          ),
+        ).thenAnswer((invocation) async {
+          final log = invocation.namedArguments[#ggLog] as GgLog;
+          log('Could not list the repositories of org.');
+        });
+
+        await command().checkTicket(
+          directory: ticketDir,
+          ggLog: ggLog,
+          includeCanPublish: false,
+        );
+
+        expect(messages, contains('Could not list the repositories of org.'));
+      });
     });
 
     group('checkTicket(includeCanPublish: false)', () {
