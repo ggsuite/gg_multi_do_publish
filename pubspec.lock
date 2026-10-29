@@ -397,18 +397,18 @@ packages:
     dependency: "direct main"
     description:
       name: gg_multi_commit
-      sha256: "78624dce8514f674f21837bd4a73328fb02953e6bbfdcd272f253159f2d480e5"
+      sha256: dcd4e81818887a43de0dce67793e08f27712d45b19c1eef79970d2cd1c5f5403
       url: "https://pub.dev"
     source: hosted
-    version: "4.8.0"
+    version: "4.8.1"
   gg_multi_core:
     dependency: "direct main"
     description:
       name: gg_multi_core
-      sha256: "568b8aceeaeb74d51d8552886104c9452e3fd309f7203b2948e008101f61c54f"
+      sha256: "94b5007de910f0b8d93b456c9f0d3f7128b21e29c9ba8a55f16adb14bb235dc0"
       url: "https://pub.dev"
     source: hosted
-    version: "4.12.0"
+    version: "4.13.0"
   gg_one:
     dependency: "direct main"
     description:

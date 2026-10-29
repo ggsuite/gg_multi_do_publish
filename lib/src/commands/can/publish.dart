@@ -35,6 +35,7 @@ class CanPublishCommand extends DirCommand<void> {
     ProcessRunner? processRunner,
     DidCommitCommand? didCommitCommand,
     DoPushCommand? doPushCommand,
+    TicketLocalizer? ticketLocalizer,
   }) : _ggCanMerge = ggCanMerge ?? gg.CanMerge(ggLog: ggLog),
        _ggCanPublish = ggCanPublish ?? gg.CanPublish(ggLog: ggLog),
        _ggNpmLoggedIn = ggNpmLoggedIn ?? gg.NpmLoggedIn(ggLog: ggLog),
@@ -43,7 +44,8 @@ class CanPublishCommand extends DirCommand<void> {
            sortedProcessingList ?? SortedProcessingList(ggLog: ggLog),
        _processRunner = processRunner ?? defaultProcessRunner,
        _didCommitCommand = didCommitCommand ?? DidCommitCommand(ggLog: ggLog),
-       _doPushCommand = doPushCommand ?? DoPushCommand(ggLog: ggLog) {
+       _doPushCommand = doPushCommand ?? DoPushCommand(ggLog: ggLog),
+       _ticketLocalizer = ticketLocalizer ?? TicketLocalizer(ggLog: ggLog) {
     _addArgs();
   }
 
@@ -70,6 +72,9 @@ class CanPublishCommand extends DirCommand<void> {
 
   /// Instance of DoPushCommand
   final DoPushCommand _doPushCommand;
+
+  /// Finds the repos the ticket lacks.
+  final TicketLocalizer _ticketLocalizer;
 
   @override
   Future<void> exec({
@@ -177,6 +182,30 @@ class CanPublishCommand extends DirCommand<void> {
       ggLog: ggLog,
       dark: true,
     ).run(() async => _runDoPush(ticketDir: ticketDir, ggLog: taskLog));
+
+    // Step 5b: Every repo the publish has to plan for is in the ticket ------
+    // A repo between two ticket repos must be released with them, or its
+    // constraints keep the dependents on the old versions. The graph only
+    // sees it when the ocean holds every organization repo the ticket
+    // depends on — so both are checked, after the push brought in what the
+    // main branches added, and before anything is released.
+    // Its details are printed whatever --verbose says: they name the repos
+    // and the commands that add them, or warn that the check was incomplete.
+    final missingRepoDetails = <String>[];
+    try {
+      await GgStatusPrinter<void>(
+        message: 'All repos in the ticket?',
+        ggLog: ggLog,
+        dark: true,
+      ).run(
+        () async => _ticketLocalizer.throwWhenReposMissing(
+          ticketDir: ticketDir,
+          ggLog: missingRepoDetails.add,
+        ),
+      );
+    } finally {
+      missingRepoDetails.forEach(ggLog);
+    }
 
     // Step 6: Run gg can merge per repo -------------------------------------
     await GgStatusPrinter<void>(
