@@ -44,6 +44,7 @@ class DoConfigurePublishCommand extends DirCommand<void> {
     PublishedVersion? publishedVersion,
     gg.VersionSelector? versionSelector,
     EditMessage? editMessage,
+    gg.EditText? editText,
     PublishSkipCheck? publishSkipCheck,
     PublishPlanner? publishPlanner,
   }) : _sortedProcessingList =
@@ -55,6 +56,7 @@ class DoConfigurePublishCommand extends DirCommand<void> {
              publishedVersion: publishedVersion,
              versionSelector: versionSelector,
              editMessage: editMessage,
+             editText: editText,
              publishSkipCheck: publishSkipCheck,
              // Asking is the whole point of this command, so it never checks
              // the terminal itself. A headless run still fails fast — inside
