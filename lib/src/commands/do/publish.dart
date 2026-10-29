@@ -150,6 +150,7 @@ class DoPublishCommand extends DirCommand<void> {
     TicketState? ticketState,
     gg.InteractAdapter? interactAdapter,
     gg.HasTerminal? hasTerminal,
+    gg.EditText? editText,
     DefaultBranch? defaultBranch,
     this._gitRetry = const GitRetry(),
     Future<void> Function(Duration duration)? delay,
@@ -177,6 +178,7 @@ class DoPublishCommand extends DirCommand<void> {
              ggLog: ggLog,
              publishSkipCheck: publishSkipCheck,
              publishedVersion: publishedVersion,
+             editText: editText,
              hasTerminal: hasTerminal,
            ),
        _ensureIgnored =

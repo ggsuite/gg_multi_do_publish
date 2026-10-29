@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.5.0 - 2026-10-29
+
+### Changed
+
+- Edit commit messages, merge messages and version increments of all repos in one JSON file in VS Code
+
 ## 4.4.7 - 2026-10-19
 
 ### Changed
