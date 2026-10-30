@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.7.0 - 2026-10-30
+
+### Changed
+
+- Demand the repos between the ticket repos only above a breaking release
+
 ## 4.6.0 - 2026-10-29
 
 ### Changed

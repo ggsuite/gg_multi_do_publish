@@ -334,6 +334,14 @@ class DoPublishCommand extends DirCommand<void> {
     pana: options[gg.panaOption] as bool?,
   );
 
+  /// Reports why the ticket wide checks failed — [e], plain — and stops the
+  /// run with `Cannot publish.`.
+  static Never _cannotPublish(Object e, GgLog ggLog) {
+    ggLog(cError(rmControls('$e')));
+    ggLog(cAction('\nPlease fix the issues above.\n'));
+    throw Exception(cDetail('Cannot publish.'));
+  }
+
   @override
   Future<void> get({
     required Directory directory,
@@ -491,10 +499,7 @@ class DoPublishCommand extends DirCommand<void> {
         // publish error.
         rethrow;
       } catch (e) {
-        ggLog([cError(rmControls('$e'))].join('\n'));
-        ggLog(cAction('\nPlease fix the issues above.\n'));
-
-        throw Exception(cDetail('Cannot publish.'));
+        _cannotPublish(e, ggLog);
       }
 
       // The push above may have localized a new edge the main merge brought.
@@ -522,6 +527,22 @@ class DoPublishCommand extends DirCommand<void> {
     );
     // The answers the pass collected are what the per-repo publishes read.
     await plan.save();
+
+    // An increment asked only now may break what the gate of step 4 let
+    // through: the repos above it must be in the ticket before anything is
+    // released. The plan knows which releases break — a recorded increment
+    // of a repo it skips does not count.
+    if (!resumingMidPublish && plan.breaking.isNotEmpty) {
+      try {
+        await _canPublishCommand.checkReposInTicket(
+          ticketDir: ticketDir,
+          ggLog: ggLog,
+          breaking: plan.breaking,
+        );
+      } catch (e) {
+        _cannotPublish(e, ggLog);
+      }
+    }
 
     // A run that neither publishes anything nor finishes a partly published
     // ticket is a no-op: the ticket carries nothing but gg's own bookkeeping.

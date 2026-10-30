@@ -1503,7 +1503,11 @@ void main() {
       ).called(1);
     });
 
-    test('falls back to the top-level merge message + increment', () async {
+    /// Publishes A with the top-level answers of a legacy gg-publish.json:
+    /// a major release. [reposMissing] fails the check of the repos
+    /// between, which a planned breaking release runs.
+    Future<({MockGgDoPublish doPublish, MockCanPublishCommand canPublish})>
+    publishMajorA({bool reposMissing = false}) async {
       // No per-repo override: forRepo falls back to the top-level defaults.
       File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
           .writeAsStringSync('''
@@ -1536,6 +1540,15 @@ void main() {
       ).thenAnswer((_) async {});
 
       stubCanPublish(mockCanPublishCommand);
+      if (reposMissing) {
+        when(
+          () => mockCanPublishCommand.checkReposInTicket(
+            ticketDir: any(named: 'ticketDir'),
+            ggLog: any(named: 'ggLog'),
+            breaking: any(named: 'breaking'),
+          ),
+        ).thenThrow(Exception('The ticket lacks M.'));
+      }
 
       when(
         () => mockSortedProcessingList.get(
@@ -1647,6 +1660,12 @@ void main() {
         );
 
       await runner.run(['publish', '--input', ticketDir.path]);
+      return (doPublish: mockGgDoPublish, canPublish: mockCanPublishCommand);
+    }
+
+    test('falls back to the top-level merge message + increment', () async {
+      final (doPublish: mockGgDoPublish, canPublish: mockCanPublishCommand) =
+          await publishMajorA();
 
       verify(
         () => mockGgDoPublish.exec(
@@ -1665,6 +1684,31 @@ void main() {
           options: any(named: 'options'),
         ),
       ).called(1);
+      // The major release asks for the repos between once more.
+      verify(
+        () => mockCanPublishCommand.checkReposInTicket(
+          ticketDir: any(named: 'ticketDir'),
+          ggLog: any(named: 'ggLog'),
+          // The releases the plan says break, not the recorded ones.
+          breaking: {'A'},
+        ),
+      ).called(1);
+    });
+
+    test('publishes nothing when a breaking release lacks the repos '
+        'between', () async {
+      await expectLater(
+        publishMajorA(reposMissing: true),
+        throwsA(
+          isA<Exception>().having(
+            (e) => rmControls('$e'),
+            'message',
+            contains('Cannot publish.'),
+          ),
+        ),
+      );
+      expect(messages, contains(contains('The ticket lacks M.')));
+      expect(messages, contains(contains('Please fix the issues above.')));
     });
 
     test('does not wait for dependency with publish_to none', () async {
@@ -8573,6 +8617,14 @@ void stubCanPublish(MockCanPublishCommand mock) {
       directory: any(named: 'directory'),
       ggLog: any(named: 'ggLog'),
       pana: any(named: 'pana'),
+    ),
+  ).thenAnswer((_) async {});
+
+  when(
+    () => mock.checkReposInTicket(
+      ticketDir: any(named: 'ticketDir'),
+      ggLog: any(named: 'ggLog'),
+      breaking: any(named: 'breaking'),
     ),
   ).thenAnswer((_) async {});
 }
