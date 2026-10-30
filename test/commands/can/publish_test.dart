@@ -1232,6 +1232,7 @@ void main() {
         () => mockTicketLocalizer.throwWhenReposMissing(
           ticketDir: any(named: 'ticketDir'),
           ggLog: any(named: 'ggLog'),
+          breaking: any(named: 'breaking'),
         ),
       ]) {
         when(stub).thenAnswer((_) async {});
@@ -1260,6 +1261,7 @@ void main() {
               ),
             ),
             ggLog: any(named: 'ggLog'),
+            breaking: any(named: 'breaking'),
           ),
         ]);
         expect(
@@ -1273,6 +1275,7 @@ void main() {
           () => mockTicketLocalizer.throwWhenReposMissing(
             ticketDir: any(named: 'ticketDir'),
             ggLog: any(named: 'ggLog'),
+            breaking: any(named: 'breaking'),
           ),
         ).thenAnswer((invocation) async {
           final log = invocation.namedArguments[#ggLog] as GgLog;
@@ -1309,6 +1312,7 @@ void main() {
           () => mockTicketLocalizer.throwWhenReposMissing(
             ticketDir: any(named: 'ticketDir'),
             ggLog: any(named: 'ggLog'),
+            breaking: any(named: 'breaking'),
           ),
         ).thenAnswer((invocation) async {
           final log = invocation.namedArguments[#ggLog] as GgLog;
@@ -1403,6 +1407,15 @@ void main() {
             ggLog: any(named: 'ggLog'),
           ),
         ).called(2);
+
+        // A merge releases nothing, so no release breaks.
+        verify(
+          () => mockTicketLocalizer.throwWhenReposMissing(
+            ticketDir: any(named: 'ticketDir'),
+            ggLog: any(named: 'ggLog'),
+            breaking: <String>{},
+          ),
+        ).called(1);
       });
     });
 

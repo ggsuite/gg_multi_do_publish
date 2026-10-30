@@ -184,28 +184,13 @@ class CanPublishCommand extends DirCommand<void> {
     ).run(() async => _runDoPush(ticketDir: ticketDir, ggLog: taskLog));
 
     // Step 5b: Every repo the publish has to plan for is in the ticket ------
-    // A repo between two ticket repos must be released with them, or its
-    // constraints keep the dependents on the old versions. The graph only
-    // sees it when the ocean holds every organization repo the ticket
-    // depends on — so both are checked, after the push brought in what the
-    // main branches added, and before anything is released.
-    // Its details are printed whatever --verbose says: they name the repos
-    // and the commands that add them, or warn that the check was incomplete.
-    final missingRepoDetails = <String>[];
-    try {
-      await GgStatusPrinter<void>(
-        message: 'All repos in the ticket?',
-        ggLog: ggLog,
-        dark: true,
-      ).run(
-        () async => _ticketLocalizer.throwWhenReposMissing(
-          ticketDir: ticketDir,
-          ggLog: missingRepoDetails.add,
-        ),
-      );
-    } finally {
-      missingRepoDetails.forEach(ggLog);
-    }
+    // After the push brought in what the main branches added, and before
+    // anything is released. A merge releases nothing, so nothing breaks.
+    await checkReposInTicket(
+      ticketDir: ticketDir,
+      ggLog: ggLog,
+      breaking: mergeOnly ? const <String>{} : null,
+    );
 
     // Step 6: Run gg can merge per repo -------------------------------------
     await GgStatusPrinter<void>(
@@ -247,6 +232,45 @@ class CanPublishCommand extends DirCommand<void> {
 
     // All successful --------------------------------------------------------
     ggLog('\nAll repos can be published\n');
+  }
+
+  /// Throws when the ticket in [ticketDir] lacks a repo the publish has to
+  /// plan for.
+  ///
+  /// A repo between a ticket repo and a release that **breaks** its
+  /// dependents — the increment recorded in its `publish_config.json` — must
+  /// be released with them: its published constraint cannot take the new
+  /// version. Any other release fits the constraints the repos between
+  /// already have, so they stay out (see [ReposBetween]). The graph only sees
+  /// them when the ocean holds every organization repo the ticket depends on —
+  /// so both are checked.
+  ///
+  /// The details are printed whatever --verbose says: they name the repos and
+  /// the commands that add them, or warn that the check was incomplete.
+  ///
+  /// [breaking] names the breaking releases when the caller knows them — the
+  /// plan of `gg do publish` — instead of the recorded increments.
+  Future<void> checkReposInTicket({
+    required Directory ticketDir,
+    required GgLog ggLog,
+    Set<String>? breaking,
+  }) async {
+    final missingRepoDetails = <String>[];
+    try {
+      await GgStatusPrinter<void>(
+        message: 'All repos in the ticket?',
+        ggLog: ggLog,
+        dark: true,
+      ).run(
+        () async => _ticketLocalizer.throwWhenReposMissing(
+          ticketDir: ticketDir,
+          ggLog: missingRepoDetails.add,
+          breaking: breaking,
+        ),
+      );
+    } finally {
+      missingRepoDetails.forEach(ggLog);
+    }
   }
 
   /// Checks whether the single repository [directory] can be published.
