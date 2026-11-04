@@ -28,6 +28,9 @@ import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
 
+/// Reads the user's settings — [GgRc.load] fits.
+typedef ReadSettings = GgRc Function({required GgLog ggLog});
+
 /// Snapshot of a repository's state taken before its publish starts.
 class _RepoPublishSnapshot {
   _RepoPublishSnapshot({
@@ -154,6 +157,7 @@ class DoPublishCommand extends DirCommand<void> {
     DefaultBranch? defaultBranch,
     this._gitRetry = const GitRetry(),
     Future<void> Function(Duration duration)? delay,
+    ReadSettings? readSettings,
   }) : _systemCommit = systemCommit ?? gg.GgSystemCommit(ggLog: ggLog),
        _ggDoUpgradeDeps = ggDoUpgradeDeps ?? gg.DoUpgradeDeps(ggLog: ggLog),
        _ggCanCommit = ggCanCommit ?? gg.CanCommit(ggLog: ggLog),
@@ -192,7 +196,8 @@ class DoPublishCommand extends DirCommand<void> {
        _defaultBranch = defaultBranch ?? DefaultBranch(ggLog: ggLog),
        _processRunner = processRunner ?? defaultProcessRunner,
        // coverage:ignore-start
-       _delay = delay ?? ((duration) => Future<void>.delayed(duration)) {
+       _delay = delay ?? ((duration) => Future<void>.delayed(duration)),
+       _readSettings = readSettings ?? GgRc.load {
     // coverage:ignore-end
     _addArgs();
   }
@@ -307,6 +312,10 @@ class DoPublishCommand extends DirCommand<void> {
   /// Waits [duration] before the next repo in the ticket starts publishing.
   /// Injectable so tests need not actually sleep.
   final Future<void> Function(Duration duration) _delay;
+
+  /// Reads `~/.gg_rc` — `do.publish.askTicketCleanup` decides whether the
+  /// cleanup offer below is asked at all.
+  final ReadSettings _readSettings;
 
   /// Safety buffer after every repo's publish, before the next repo in the
   /// ticket starts — independent of whether it depends on the package just
@@ -551,23 +560,34 @@ class DoPublishCommand extends DirCommand<void> {
         subs.any((repo) => stateOf(repo.directory).status == 'published');
     final isNoOpRun = !plan.anyPublishes && !anyAlreadyPublished;
 
-    // Step 6: The last interactive question — what happens to the ticket once
-    // everything is published. Asked here so no prompt sits between the
-    // irreversible publish steps or at the very end of a long unattended run.
-    // A no-op run is not asked at all: the user expected a release, nothing
-    // happened, and offering to trash the ticket would be a surprising side
-    // effect of doing nothing.
+    // Step 6: What happens to the ticket once everything is published. Asked
+    // here — when asked at all — so no prompt sits between the irreversible
+    // publish steps or at the very end of a long unattended run. A no-op run
+    // is not asked at all: the user expected a release, nothing happened, and
+    // offering to trash the ticket would be a surprising side effect of doing
+    // nothing.
+    //
+    // `do.publish.askTicketCleanup` in `~/.gg_rc` decides whether this is
+    // asked at all; its built-in default is `false`, because the answer is
+    // the same (»move to .trash«) for almost every run. Set it to `true` to
+    // get the interactive question back.
     //
     // The answer is persisted in the runtime file, so a `--continue` after a
-    // failure resumes with the decision the user already made. A no-op run
-    // answers »keep« without recording it — that is the absence of a decision,
-    // not one, and a later real run must still get to ask.
+    // failure resumes with the decision already made. A no-op run answers
+    // »keep« without recording it — that is the absence of a decision, not
+    // one, and a later real run must still get to decide.
     final ticketState = loadTicketPublishState(ticketDir);
     final bool closeTicketWhenDone;
     if (ticketState.deleteTicket != null) {
       closeTicketWhenDone = ticketState.deleteTicket!;
     } else if (isNoOpRun) {
       closeTicketWhenDone = false;
+    } else if (!_readSettings(ggLog: ggLog)
+        .flag(['do', 'publish', 'askTicketCleanup'])) {
+      closeTicketWhenDone = true;
+      await ticketState
+          .copyWith(deleteTicket: closeTicketWhenDone)
+          .save(file: ticketStateFile);
     } else {
       closeTicketWhenDone = await _offerTicketCleanup(
         ticketName: path.basename(ticketDir.path),
