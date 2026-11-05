@@ -582,16 +582,14 @@ class DoPublishCommand extends DirCommand<void> {
       closeTicketWhenDone = ticketState.deleteTicket!;
     } else if (isNoOpRun) {
       closeTicketWhenDone = false;
-    } else if (!_readSettings(ggLog: ggLog)
-        .flag(['do', 'publish', 'askTicketCleanup'])) {
-      closeTicketWhenDone = true;
-      await ticketState
-          .copyWith(deleteTicket: closeTicketWhenDone)
-          .save(file: ticketStateFile);
     } else {
-      closeTicketWhenDone = await _offerTicketCleanup(
-        ticketName: path.basename(ticketDir.path),
-      );
+      closeTicketWhenDone =
+          !_readSettings(ggLog: ggLog)
+              .flag(['do', 'publish', 'askTicketCleanup'])
+          ? true
+          : await _offerTicketCleanup(
+              ticketName: path.basename(ticketDir.path),
+            );
       await ticketState
           .copyWith(deleteTicket: closeTicketWhenDone)
           .save(file: ticketStateFile);
