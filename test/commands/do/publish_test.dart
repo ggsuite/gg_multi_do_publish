@@ -6427,6 +6427,7 @@ void main() {
       RepoConfigurator? doConfigurePublishCommand,
       PublishedVersion? publishedVersion,
       DefaultBranch? defaultBranch,
+      ReadSettings? readSettings,
     }) => CommandRunner<void>('test', 'do publish ticket')
       ..addCommand(
         makePublishCommand(
@@ -6434,6 +6435,7 @@ void main() {
           doConfigurePublishCommand: doConfigurePublishCommand,
           publishedVersion: publishedVersion,
           defaultBranch: defaultBranch,
+          readSettings: readSettings,
           ensureInRegistry: mockEnsureInRegistry,
           ggDoPublish: mockGgDoPublish,
           systemCommit: mockSystemCommit,
@@ -6975,6 +6977,47 @@ void main() {
           contains('Change to the workspace root with:'),
         );
         expect(coloredMessages, contains(cCmd('  cd ${tempDir.path}')));
+      });
+
+      test('skips the offer and trashes the ticket when '
+          'do.publish.askTicketCleanup is false', () async {
+        // The built-in default of `~/.gg_rc`: nobody is asked, the answer
+        // is always »Move to .trash and delete the remote branches«.
+        stubSkipCheck({'A'});
+        File(path.join(ticketDir.path, 'TICKPB.code-workspace'))
+            .writeAsStringSync('{"folders": []}');
+        when(
+          () => mockProcessRunner('git', [
+            'push',
+            'origin',
+            '--delete',
+            'TICKPB',
+          ], workingDirectory: any(named: 'workingDirectory')),
+        ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
+
+        final adapter = MockInteractAdapter();
+
+        await buildRunner(
+          interactAdapter: adapter,
+          hasTerminal: () => true,
+          readSettings: ({required GgLog ggLog}) => const GgRc(
+            values: {
+              'do': {
+                'publish': {'askTicketCleanup': false},
+              },
+            },
+          ),
+        ).run(['publish', '--input', ticketDir.path]);
+
+        verifyNever(
+          () => adapter.choose(
+            message: any(named: 'message'),
+            options: any(named: 'options'),
+          ),
+        );
+        final trashDir = Directory(path.join(tempDir.path, '.trash', 'TICKPB'));
+        expect(Directory(path.join(trashDir.path, 'A')).existsSync(), isTrue);
+        expect(ticketDir.existsSync(), isFalse);
       });
 
       test('also appears after a run that actually published', () async {
@@ -8757,6 +8800,7 @@ DoPublishCommand makePublishCommand({
   gg.HasTerminal? hasTerminal,
   DefaultBranch? defaultBranch,
   Future<void> Function(Duration duration)? delay,
+  ReadSettings? readSettings,
 }) {
   // The repositories of these tests are plain folders, so the real
   // `DefaultBranch` would find no branch at all. Unless a test brings its
@@ -8837,6 +8881,16 @@ DoPublishCommand makePublishCommand({
     ).thenAnswer((_) async {});
     ticketState = mock;
   }
+  // Tests drive the cleanup offer directly — unlike the real `~/.gg_rc`
+  // default, which skips it — so the question keeps being asked unless a
+  // test injects its own settings to prove the `askTicketCleanup` config.
+  readSettings ??= ({required GgLog ggLog}) => const GgRc(
+    values: {
+      'do': {
+        'publish': {'askTicketCleanup': true},
+      },
+    },
+  );
   return DoPublishCommand(
     ggLog: ggLog,
     mergeOnly: mergeOnly,
@@ -8875,6 +8929,7 @@ DoPublishCommand makePublishCommand({
     defaultBranch: defaultBranch,
     gitRetry: GitRetry.example,
     delay: delay,
+    readSettings: readSettings,
   );
 }
 
