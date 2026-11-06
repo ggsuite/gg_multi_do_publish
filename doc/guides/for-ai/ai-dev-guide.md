@@ -158,7 +158,8 @@ gg do code
 ## Plan (optional)
 
 Requirements come before the plan. If the project management repo keeps
-requirements (`doc/requirements`) and none of its accepted requirements
+requirements (`doc/<yyyy>-Q<n>/requirements`, in the newest quarter
+folder) and none of its accepted requirements
 covers the ticket, engineer them with the user first — with
 `/gg-plan-requirements` if the repo has it — and plan the ticket only after
 that. Bug tickets are the exception, they name their bug file.

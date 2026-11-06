@@ -103,8 +103,9 @@ Run it only when the user asks for it.
 
 ## 6. Plan or implement
 
-If the project management repo keeps requirements (`doc/requirements`)
-and no accepted requirement covers the ticket, engineer them with the user
+If the project management repo keeps requirements
+(`doc/<yyyy>-Q<n>/requirements`, in the newest quarter folder) and no
+accepted requirement covers the ticket, engineer them with the user
 first — with `/gg-plan-requirements` if the repo has it — before any plan or
 code. Bug tickets are the exception, they name their bug file.
 
