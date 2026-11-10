@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.7.2 - 2026-11-10
+
+### Added
+
+- Add a blog post about using ReadSettings from gg_multi_core
+
+### Changed
+
+- Use ReadSettings from gg_multi_core
+
 ## 4.7.1 - 2026-11-06
 
 ### Changed

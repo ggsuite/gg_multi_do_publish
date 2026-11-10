@@ -1,6 +1,6 @@
 name: gg_multi_do_publish
 description: "The multi-repo publish orchestrator of the gg_multi tool family - publishing all ticket repos in dependency order with skip checks, resume and rollback."
-version: 4.7.1
+version: 4.7.2
 repository: https://github.com/ggsuite/gg_multi_do_publish.git
 
 environment:
@@ -14,10 +14,10 @@ dependencies:
   gg_local_package_dependencies: ^4.2.4
   gg_localize_refs: ^5.2.1
   gg_log: ^1.2.0
-  gg_multi_commit: ^4.9.1
-  gg_multi_core: ^4.15.1
+  gg_multi_commit: ^4.9.2
+  gg_multi_core: ^4.18.0
   gg_one: ^14.4.13
-  gg_process: ^1.4.0
+  gg_process: ^1.4.1
   gg_publish: ^4.10.3
   gg_status_printer: ^1.6.4
   mocktail: ^1.0.5
@@ -26,7 +26,7 @@ dependencies:
 
 dev_dependencies:
   args: ^2.7.0
-  dna_ggsuite: ^1.0.1
+  dna_ggsuite: ^1.0.2
   gg_capture_print: ^1.2.1
   helix: ^1.14.0
   lints: ^6.1.0

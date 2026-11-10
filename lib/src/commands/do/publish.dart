@@ -28,9 +28,6 @@ import 'package:gg_multi_core/gg_multi_core.dart';
 import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
 
-/// Reads the user's settings — [GgRc.load] fits.
-typedef ReadSettings = GgRc Function({required GgLog ggLog});
-
 /// Snapshot of a repository's state taken before its publish starts.
 class _RepoPublishSnapshot {
   _RepoPublishSnapshot({
