@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Add a blog post about using ReadSettings from gg_multi_core
+
 ### Changed
 
 - Use ReadSettings from gg_multi_core
