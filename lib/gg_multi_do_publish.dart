@@ -6,6 +6,9 @@
 
 library;
 
+// Moved to gg_multi_core; still exported for the users of this package.
+export 'package:gg_multi_core/gg_multi_core.dart' show ReadSettings;
+
 export 'src/backend/ensure_in_registry.dart';
 export 'src/backend/npm_registry_checker.dart';
 export 'src/backend/pub_dev_checker.dart';

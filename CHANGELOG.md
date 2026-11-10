@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Use ReadSettings from gg_multi_core
+
 ## 4.7.1 - 2026-11-06
 
 ### Changed
