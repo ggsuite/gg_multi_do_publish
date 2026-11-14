@@ -2,17 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- Add the blog post and describe the levels
+
+Add the blog post of the change
+README: publishing level by level
+Tighten the dependencies
+
 ### Changed
 
 - Publish the repos of a dependency level at once
-
-The repos are published level by level, up to four repos of a level at the same time; their tests share the heavy slots of the machine; GG_PARALLEL=1 publishes one repo after the other
-Rewriting references, resolving dependencies and the workspace restore stay one repo at a time, and so do uploads and the first-publish question
-A failing repo lets the repos of its level finish; the next level does not start
-A repo waits for its upload to show up only when a repo published later depends on it; the settle delay and the wait for dependencies happen once per level, all other versions are waited for at once after the last repo
-The ticket-wide checks (pub get, git status, can merge, npm login) run for all repos at the same time
-The tests ask no registry for real any more: one of them took 29 of its 30 seconds for an npm lookup
-A repo that is checked on its own gets the whole machine for its tests
 
 ## 4.7.2 - 2026-11-10
 

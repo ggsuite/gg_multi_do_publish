@@ -17,6 +17,9 @@ and the daily flows it builds on in `gg_multi_commit`.
   propagate published versions, upgrade + re-verify, publish via
   gg_one (version bump → registry upload → auto-merge pull request →
   tag), and restore the workspace state so the ticket stays workable.
+  The repos are published level by level: the repos of a dependency
+  level need nothing from one another and are published at the same
+  time, up to four; `GG_PARALLEL=1` publishes one repo after the other.
 - **`do publish --merge-only`** — the same flow with every release
   step left out: no version bump, no registry upload, no tag. There is
   no separate `do merge` command.
@@ -38,7 +41,8 @@ and the daily flows it builds on in `gg_multi_commit`.
   never published must be published manually once; the gate prints the
   commands, waits, re-checks and continues.
 - **Progress & resume** — each repo's status is recorded in
-  `.gg/.gg-publish.json`; `--continue` resumes after a failure,
+  `.gg/.gg-publish.json`; a failing repo lets the repos of its level
+  finish; `--continue` resumes after a failure,
   `--restart` discards the recorded progress.
 - **Registry checkers** (`pub_dev_checker.dart`,
   `npm_registry_checker.dart`) — published-version lookups for pub.dev
