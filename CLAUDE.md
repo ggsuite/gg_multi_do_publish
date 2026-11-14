@@ -130,7 +130,4 @@ four places:
 scoped package on a private feed no longer gets an npmjs.com link that 404s.
 
 <!-- helix:claude_md:start -->
-
-@.claude/CLAUDE_dna_gg.md
-
 <!-- helix:claude_md:end -->
