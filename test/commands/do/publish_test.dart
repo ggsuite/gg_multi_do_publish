@@ -6,6 +6,7 @@
 
 import 'package:gg_git/gg_git.dart';
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -23,6 +24,7 @@ import 'package:gg_multi_do_publish/src/commands/can/publish.dart';
 import 'package:gg_multi_commit/gg_multi_commit.dart';
 import 'package:gg_multi_do_publish/src/commands/do/publish.dart';
 import 'package:gg_one/gg_one.dart' as gg;
+import 'package:gg_process/gg_process.dart';
 import 'package:gg_publish/gg_publish.dart'
     show PublishedVersion, VersionIncrement;
 import 'package:gg_status_printer/gg_status_printer.dart';
@@ -162,6 +164,10 @@ void main() {
   setUp(() {
     messages.clear();
     coloredMessages.clear();
+    // One repo after the other, on every machine: these tests are about
+    // what happens to a repo, and many of them look at the order of the
+    // calls. The tests about repos side by side say so themselves.
+    GgPlatformDelegate.current = _Parallel('1');
     mockEnsureInRegistry = MockEnsureInRegistry();
     when(
       () => mockEnsureInRegistry.ensure(
@@ -193,6 +199,7 @@ void main() {
   });
 
   tearDown(() {
+    GgPlatformDelegate.current = null;
     if (tempDir.existsSync()) {
       tempDir.deleteSync(recursive: true);
     }
@@ -736,200 +743,220 @@ void main() {
       expect(coloredMessages, contains(cCmd('  gg do rm ticket TICKPB')));
     });
 
-    test(
-      'settles 10s after every published repo before the next one starts',
-      () async {
-        // A registry can report a version as visible while it is still
-        // propagating — the flat settle delay is a safety margin on top of
-        // the targeted dependency wait, independent of whether the next repo
-        // actually depends on the one just published.
-        final mockGgDoPublish = MockGgDoPublish();
-        final mockSystemCommit = MockGgSystemCommit();
-        final mockGgDoPush = MockGgDoPush();
-        final mockUnlocalizeRefs = MockUnlocalizeRefs();
-        final mockLocalizeRefs = MockLocalizeRefs();
-        final mockSortedProcessingList = MockSortedProcessingList();
-        final mockProcessRunner = MockProcessRunner();
-        _stubPubUpgrade(mockProcessRunner);
-        _stubRepoSnapshot(mockProcessRunner);
-        final mockCanPublishCommand = MockCanPublishCommand();
-        final mockDidReviewCommand = MockDidReviewCommand();
-        final mockGetVersion = MockGetVersion();
-        final mockSetRefVersion = MockSetRefVersion();
-        final mockGetRefVersion = MockGetRefVersion();
-        final mockPubDevChecker = MockPubDevChecker();
-        final delayedDurations = <Duration>[];
+    test('waits for the registry and settles 10s only after a repo that a '
+        'later repo depends on', () async {
+      // B depends on A. A registry takes minutes to show a fresh upload,
+      // and can report a version as visible while it is still propagating.
+      // Both waits are only worth their time before a repo that resolves
+      // against the upload: after A. Nothing follows B, so its version is
+      // waited for at the end of the run, together with all others.
+      final waitOptions = <String, Object?>{};
+      final events = <String>[];
+      final mockGgDoPublish = MockGgDoPublish();
+      final mockSystemCommit = MockGgSystemCommit();
+      final mockGgDoPush = MockGgDoPush();
+      final mockUnlocalizeRefs = MockUnlocalizeRefs();
+      final mockLocalizeRefs = MockLocalizeRefs();
+      final mockSortedProcessingList = MockSortedProcessingList();
+      final mockProcessRunner = MockProcessRunner();
+      _stubPubUpgrade(mockProcessRunner);
+      _stubRepoSnapshot(mockProcessRunner);
+      final mockCanPublishCommand = MockCanPublishCommand();
+      final mockDidReviewCommand = MockDidReviewCommand();
+      final mockGetVersion = MockGetVersion();
+      final mockSetRefVersion = MockSetRefVersion();
+      final mockGetRefVersion = MockGetRefVersion();
+      final mockPubDevChecker = MockPubDevChecker();
+      final delayedDurations = <Duration>[];
 
-        when(
-          () => mockLocalizeRefs.get(
-            directory: any(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
+      when(
+        () => mockLocalizeRefs.get(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async {});
+
+      when(
+        () => mockDidReviewCommand.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async {});
+
+      stubCanPublish(mockCanPublishCommand);
+
+      when(
+        () => mockSortedProcessingList.get(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer(
+        (_) async => [
+          Node(
+            name: 'A',
+            directory: Directory(path.join(ticketDir.path, 'A')),
+            manifest: DartPackageManifest(pubspec: Pubspec('A')),
           ),
-        ).thenAnswer((_) async {});
-
-        when(
-          () => mockDidReviewCommand.exec(
-            directory: any(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
-          ),
-        ).thenAnswer((_) async {});
-
-        stubCanPublish(mockCanPublishCommand);
-
-        when(
-          () => mockSortedProcessingList.get(
-            directory: any(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
-          ),
-        ).thenAnswer(
-          (_) async => [
-            Node(
-              name: 'A',
-              directory: Directory(path.join(ticketDir.path, 'A')),
-              manifest: DartPackageManifest(pubspec: Pubspec('A')),
-            ),
-            Node(
-              name: 'B',
-              directory: Directory(path.join(ticketDir.path, 'B')),
-              manifest: DartPackageManifest(
-                pubspec: Pubspec(
-                  'B',
-                  dependencies: <String, Dependency>{
-                    'A': HostedDependency(
-                      version: VersionConstraint.parse('^1.0.0'),
-                    ),
-                  },
-                ),
+          Node(
+            name: 'B',
+            directory: Directory(path.join(ticketDir.path, 'B')),
+            manifest: DartPackageManifest(
+              pubspec: Pubspec(
+                'B',
+                dependencies: <String, Dependency>{
+                  'A': HostedDependency(
+                    version: VersionConstraint.parse('^1.0.0'),
+                  ),
+                },
               ),
             ),
-          ],
+          ),
+        ],
+      );
+
+      when(
+        () => mockUnlocalizeRefs.get(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async {});
+
+      when(
+        () => mockSystemCommit.commit(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
+        ),
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
+
+      when(
+        () => mockGgDoPush.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          force: any(named: 'force'),
+        ),
+      ).thenAnswer((_) async {});
+
+      when(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((invocation) async {
+        final dir = invocation.namedArguments[#directory] as Directory;
+        final options =
+            invocation.namedArguments[#options] as Map<String, dynamic>;
+        final repo = path.basename(dir.path);
+        waitOptions[repo] = options[gg.waitUntilPublishedOption];
+        events.add('publish $repo');
+      });
+
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
+
+      when(
+        () => mockGetRefVersion.get(
+          directory: any(named: 'directory'),
+          ref: any(named: 'ref'),
+        ),
+      ).thenAnswer((_) async => null);
+
+      when(
+        () => mockSetRefVersion.get(
+          directory: any(named: 'directory'),
+          ref: any(named: 'ref'),
+          version: any(named: 'version'),
+        ),
+      ).thenAnswer((_) async {});
+
+      when(
+        () => mockPubDevChecker.getPackagePublishInfo(
+          packageName: any(named: 'packageName'),
+        ),
+      ).thenAnswer((invocation) async {
+        final packageName = invocation.namedArguments[#packageName] as String;
+        return PackagePublishInfo(
+          packageName: packageName,
+          waitsForPubDev: true,
         );
+      });
 
-        when(
-          () => mockUnlocalizeRefs.get(
-            directory: any(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
-          ),
-        ).thenAnswer((_) async {});
+      when(
+        () => mockPubDevChecker.waitUntilVersionAvailable(
+          packageName: any(named: 'packageName'),
+          version: any(named: 'version'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((invocation) async {
+        events.add('wait for ${invocation.namedArguments[#packageName]}');
+      });
 
-        when(
-          () => mockSystemCommit.commit(
-            directory: any(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
-            message: any(named: 'message'),
-            paths: any(named: 'paths'),
-            includeUntracked: any(named: 'includeUntracked'),
-            ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
-            userCommitMessage: any(named: 'userCommitMessage'),
-            stateKey: any(named: 'stateKey'),
-          ),
-        ).thenAnswer(
-          (_) async => const gg.GgSystemCommitResult(
-            userCommitCreated: false,
-            systemCommitCreated: true,
-            ggOwnedPaths: ['pubspec.yaml'],
-            foreignPaths: [],
+      final runner = CommandRunner<void>('test', 'do publish ticket')
+        ..addCommand(
+          makePublishCommand(
+            ggLog: ggLog,
+            ensureInRegistry: mockEnsureInRegistry,
+            ggDoPublish: mockGgDoPublish,
+            systemCommit: mockSystemCommit,
+            ggDoPush: mockGgDoPush,
+            unlocalizeRefs: mockUnlocalizeRefs,
+            localizeRefs: mockLocalizeRefs,
+            sortedProcessingList: mockSortedProcessingList,
+            processRunner: mockProcessRunner.call,
+            canPublishCommand: mockCanPublishCommand,
+            didReviewCommand: mockDidReviewCommand,
+            getVersionCommand: mockGetVersion,
+            setRefVersionCommand: mockSetRefVersion,
+            getRefVersionCommand: mockGetRefVersion,
+            pubDevChecker: mockPubDevChecker,
+            delay: (duration) async {
+              delayedDurations.add(duration);
+              events.add('settle');
+            },
           ),
         );
+      await runner.run(['publish', '--input', ticketDir.path, '--verbose']);
 
-        when(
-          () => mockGgDoPush.exec(
-            directory: any(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
-            force: any(named: 'force'),
-          ),
-        ).thenAnswer((_) async {});
+      // gg_one's publish waits for the registry for A, not for B.
+      expect(waitOptions, {'A': true, 'B': false});
 
-        when(
-          () => mockGgDoPublish.exec(
-            directory: any(named: 'directory'),
-            ggLog: any(named: 'ggLog'),
-            message: any(named: 'message'),
-            deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
-            verbose: any(named: 'verbose'),
-            versionIncrement: any(named: 'versionIncrement'),
-            channel: any(named: 'channel'),
-            askBeforePublishing: any(named: 'askBeforePublishing'),
-            resume: any(named: 'resume'),
-            pr: any(named: 'pr'),
-            mergeOnly: any(named: 'mergeOnly'),
-            force: any(named: 'force'),
-            upgrade: any(named: 'upgrade'),
-            options: any(named: 'options'),
-          ),
-        ).thenAnswer((_) async {});
+      // The margin follows A only.
+      expect(delayedDurations, [const Duration(seconds: 10)]);
 
-        when(() => mockGetVersion.get(directory: any(named: 'directory')))
-            .thenAnswer((_) async => '1.0.0');
-
-        when(
-          () => mockGetRefVersion.get(
-            directory: any(named: 'directory'),
-            ref: any(named: 'ref'),
-          ),
-        ).thenAnswer((_) async => null);
-
-        when(
-          () => mockSetRefVersion.get(
-            directory: any(named: 'directory'),
-            ref: any(named: 'ref'),
-            version: any(named: 'version'),
-          ),
-        ).thenAnswer((_) async {});
-
-        when(
-          () => mockPubDevChecker.getPackagePublishInfo(
-            packageName: any(named: 'packageName'),
-          ),
-        ).thenAnswer((invocation) async {
-          final packageName = invocation.namedArguments[#packageName] as String;
-          return PackagePublishInfo(
-            packageName: packageName,
-            waitsForPubDev: true,
-          );
-        });
-
-        when(
-          () => mockPubDevChecker.waitUntilVersionAvailable(
-            packageName: any(named: 'packageName'),
-            version: any(named: 'version'),
-            ggLog: any(named: 'ggLog'),
-          ),
-        ).thenAnswer((_) async {});
-
-        final runner = CommandRunner<void>('test', 'do publish ticket')
-          ..addCommand(
-            makePublishCommand(
-              ggLog: ggLog,
-              ensureInRegistry: mockEnsureInRegistry,
-              ggDoPublish: mockGgDoPublish,
-              systemCommit: mockSystemCommit,
-              ggDoPush: mockGgDoPush,
-              unlocalizeRefs: mockUnlocalizeRefs,
-              localizeRefs: mockLocalizeRefs,
-              sortedProcessingList: mockSortedProcessingList,
-              processRunner: mockProcessRunner.call,
-              canPublishCommand: mockCanPublishCommand,
-              didReviewCommand: mockDidReviewCommand,
-              getVersionCommand: mockGetVersion,
-              setRefVersionCommand: mockSetRefVersion,
-              getRefVersionCommand: mockGetRefVersion,
-              pubDevChecker: mockPubDevChecker,
-              delay: (duration) async {
-                delayedDurations.add(duration);
-              },
-            ),
-          );
-        await runner.run(['publish', '--input', ticketDir.path, '--verbose']);
-
-        // Once per published repo (A and B) — a flat margin independent of
-        // whether the next repo actually depends on the one just released.
-        expect(delayedDurations, [
-          const Duration(seconds: 10),
-          const Duration(seconds: 10),
-        ]);
-      },
-    );
+      // A is confirmed before B resolves against it; B's version is waited
+      // for once everything is released. No version is asked for twice.
+      expect(events, [
+        'publish A',
+        'settle',
+        'wait for A',
+        'publish B',
+        'wait for B',
+      ]);
+    });
 
     test('waits on npm for a published TypeScript dependency', () async {
       // Make repo A a TypeScript project; B (Dart) depends on A.
@@ -1846,6 +1873,13 @@ void main() {
         (_) async =>
             const PackagePublishInfo(packageName: 'B', waitsForPubDev: true),
       );
+      when(
+        () => mockPubDevChecker.waitUntilVersionAvailable(
+          packageName: any(named: 'packageName'),
+          version: any(named: 'version'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async {});
 
       final runner = CommandRunner<void>('test', 'do publish ticket')
         ..addCommand(
@@ -1869,13 +1903,25 @@ void main() {
 
       await runner.run(['publish', '--input', ticketDir.path]);
 
+      // A reaches no registry: nothing waits for it, B neither, which
+      // depends on it.
       verifyNever(
         () => mockPubDevChecker.waitUntilVersionAvailable(
-          packageName: any(named: 'packageName'),
+          packageName: 'A',
           version: any(named: 'version'),
           ggLog: any(named: 'ggLog'),
         ),
       );
+
+      // B is released last. Its version is waited for once, when the run
+      // is through with the repos.
+      verify(
+        () => mockPubDevChecker.waitUntilVersionAvailable(
+          packageName: 'B',
+          version: any(named: 'version'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).called(1);
     });
 
     test('aborts if can publish fails', () async {
@@ -8193,9 +8239,9 @@ void main() {
 
         // checkTicket once, checkRepo per repo.
         expect(panaOfGate(), [false, false, false]);
-        expect(panaOfGgDoPublish(), [
-          {gg.panaOption: false},
-          {gg.panaOption: false},
+        expect(panaOfGgDoPublish().map((options) => options[gg.panaOption]), [
+          false,
+          false,
         ]);
       });
 
@@ -8203,9 +8249,9 @@ void main() {
         await buildRunner().run(['publish', '--input', ticketDir.path]);
 
         expect(panaOfGate(), [true, true, true]);
-        expect(panaOfGgDoPublish(), [
-          {gg.panaOption: true},
-          {gg.panaOption: true},
+        expect(panaOfGgDoPublish().map((options) => options[gg.panaOption]), [
+          true,
+          true,
         ]);
       });
 
@@ -8626,6 +8672,557 @@ void main() {
       expect(DoPublishCommand(ggLog: ggLog), isNotNull);
     });
   });
+
+  // ...........................................................................
+  // Repos that do not depend on each other need nothing from one another, so
+  // they can be published at the same time: as many as GG_PARALLEL allows.
+  // The repos of the ticket form levels — a repo is one level above the
+  // repos it depends on — and a level starts when the one before is through.
+  group('DoPublishCommand with several repos of a level', () {
+    /// What happened, in the order it happened.
+    final events = <String>[];
+
+    /// The settle delays the run asked for.
+    final delays = <Duration>[];
+
+    /// What gg_one's publish of a repo does in the test at hand. It gets the
+    /// options the command handed over.
+    late Future<void> Function(String repo, Map<String, dynamic> options)
+    onPublish;
+
+    setUp(() {
+      events.clear();
+      delays.clear();
+    });
+
+    /// Lets [count] repos be published at the same time, as `GG_PARALLEL`
+    /// does.
+    void allowParallel(int count) {
+      GgPlatformDelegate.current = _Parallel('$count');
+    }
+
+    /// The recorded status of [repo]: the marker a `--continue` reads.
+    String? statusOf(String repo) => loadTicketRepoPublishFiles(
+      repoDir: Directory(path.join(ticketDir.path, repo)),
+      ticketDir: ticketDir,
+    ).state.status;
+
+    /// A `gg do publish` over [repos] — name → the repos it depends on, in
+    /// dependency order. Everything around gg_one's publish succeeds; that
+    /// one does what [onPublish] says.
+    CommandRunner<void> publishRunner(
+      Map<String, List<String>> repos, {
+      MockGgCanCommit? ggCanCommit,
+    }) {
+      final nodes = <Node>[
+        for (final MapEntry(key: name, value: dependencies) in repos.entries)
+          Node(
+            name: name,
+            directory: Directory(path.join(ticketDir.path, name)),
+            manifest: DartPackageManifest(
+              pubspec: Pubspec(
+                name,
+                dependencies: <String, Dependency>{
+                  for (final dependency in dependencies)
+                    dependency: HostedDependency(
+                      version: VersionConstraint.parse('^1.0.0'),
+                    ),
+                },
+              ),
+            ),
+          ),
+      ];
+      for (final node in nodes) {
+        final pubspec = File(path.join(node.directory.path, 'pubspec.yaml'));
+        if (!pubspec.existsSync()) {
+          pubspec
+            ..createSync(recursive: true)
+            ..writeAsStringSync('name: ${node.name}\n');
+        }
+      }
+
+      final mockGgDoPublish = MockGgDoPublish();
+      final mockSystemCommit = MockGgSystemCommit();
+      final mockGgDoPush = MockGgDoPush();
+      final mockUnlocalizeRefs = MockUnlocalizeRefs();
+      final mockLocalizeRefs = MockLocalizeRefs();
+      final mockSortedProcessingList = MockSortedProcessingList();
+      final mockProcessRunner = MockProcessRunner();
+      _stubPubUpgrade(mockProcessRunner);
+      _stubRepoSnapshot(mockProcessRunner);
+      final mockCanPublishCommand = MockCanPublishCommand();
+      final mockDidReviewCommand = MockDidReviewCommand();
+      final mockGetVersion = MockGetVersion();
+      final mockSetRefVersion = MockSetRefVersion();
+      final mockGetRefVersion = MockGetRefVersion();
+      final mockPubDevChecker = MockPubDevChecker();
+
+      when(
+        () => mockLocalizeRefs.get(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockDidReviewCommand.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async {});
+      stubCanPublish(mockCanPublishCommand);
+      when(
+        () => mockSortedProcessingList.get(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async => nodes);
+      when(
+        () => mockUnlocalizeRefs.get(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockSystemCommit.commit(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          paths: any(named: 'paths'),
+          includeUntracked: any(named: 'includeUntracked'),
+          ammendWhenNotPushed: any(named: 'ammendWhenNotPushed'),
+          userCommitMessage: any(named: 'userCommitMessage'),
+          stateKey: any(named: 'stateKey'),
+        ),
+      ).thenAnswer(
+        (_) async => const gg.GgSystemCommitResult(
+          userCommitCreated: false,
+          systemCommitCreated: true,
+          ggOwnedPaths: ['pubspec.yaml'],
+          foreignPaths: [],
+        ),
+      );
+      when(
+        () => mockGgDoPush.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          force: any(named: 'force'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockGgDoPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer((invocation) {
+        final dir = invocation.namedArguments[#directory] as Directory;
+        return onPublish(
+          path.basename(dir.path),
+          invocation.namedArguments[#options] as Map<String, dynamic>,
+        );
+      });
+      when(() => mockGetVersion.get(directory: any(named: 'directory')))
+          .thenAnswer((_) async => '1.0.0');
+      when(
+        () => mockGetRefVersion.get(
+          directory: any(named: 'directory'),
+          ref: any(named: 'ref'),
+        ),
+      ).thenAnswer((_) async => null);
+      when(
+        () => mockSetRefVersion.get(
+          directory: any(named: 'directory'),
+          ref: any(named: 'ref'),
+          version: any(named: 'version'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockPubDevChecker.getPackagePublishInfo(
+          packageName: any(named: 'packageName'),
+        ),
+      ).thenAnswer(
+        (invocation) async => PackagePublishInfo(
+          packageName: invocation.namedArguments[#packageName] as String,
+          waitsForPubDev: true,
+        ),
+      );
+      when(
+        () => mockPubDevChecker.waitUntilVersionAvailable(
+          packageName: any(named: 'packageName'),
+          version: any(named: 'version'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((invocation) async {
+        events.add('visible ${invocation.namedArguments[#packageName]}');
+      });
+
+      return CommandRunner<void>('test', 'do publish ticket')..addCommand(
+        makePublishCommand(
+          ggLog: ggLog,
+          ensureInRegistry: mockEnsureInRegistry,
+          ggDoPublish: mockGgDoPublish,
+          systemCommit: mockSystemCommit,
+          ggDoPush: mockGgDoPush,
+          unlocalizeRefs: mockUnlocalizeRefs,
+          localizeRefs: mockLocalizeRefs,
+          sortedProcessingList: mockSortedProcessingList,
+          processRunner: mockProcessRunner.call,
+          canPublishCommand: mockCanPublishCommand,
+          didReviewCommand: mockDidReviewCommand,
+          getVersionCommand: mockGetVersion,
+          setRefVersionCommand: mockSetRefVersion,
+          getRefVersionCommand: mockGetRefVersion,
+          pubDevChecker: mockPubDevChecker,
+          ggCanCommit: ggCanCommit,
+          delay: (duration) async {
+            delays.add(duration);
+            events.add('settle');
+          },
+        ),
+      );
+    }
+
+    /// A publish of gg_one that takes a moment.
+    Future<void> publishSlowly(String repo, Map<String, dynamic> _) async {
+      events.add('start $repo');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      events.add('end $repo');
+    }
+
+    /// The events that are about gg_one's publish.
+    List<String> publishEvents() => events
+        .where((e) => e.startsWith('start') || e.startsWith('end'))
+        .toList();
+
+    const noWait = Duration(seconds: 10);
+
+    test('publishes several repos of a level at the same time by '
+        'default', () async {
+      // No GG_PARALLEL: the limit for releases side by side applies. It is
+      // a fixed number, whatever the machine.
+      GgPlatformDelegate.current = null;
+      expect(gg.GgParallelism.publishes, 4);
+
+      final bothStarted = Completer<void>();
+      var started = 0;
+      onPublish = (repo, _) async {
+        events.add('start $repo');
+        if (++started == 2) {
+          bothStarted.complete();
+        }
+        await bothStarted.future.timeout(noWait);
+        events.add('end $repo');
+      };
+
+      await publishRunner({'A': [], 'B': []})
+          .run(['publish', '--input', ticketDir.path]);
+
+      expect(publishEvents().take(2), ['start A', 'start B']);
+    });
+
+    test('publishes one repo after the other with GG_PARALLEL=1', () async {
+      allowParallel(1);
+      onPublish = publishSlowly;
+
+      await publishRunner({'A': [], 'B': []})
+          .run(['publish', '--input', ticketDir.path]);
+
+      expect(publishEvents(), ['start A', 'end A', 'start B', 'end B']);
+
+      // Nothing depends on either: no margin, and both versions are waited
+      // for when everything is released.
+      expect(delays, isEmpty);
+      expect(events.skip(4), unorderedEquals(['visible A', 'visible B']));
+    });
+
+    test('publishes the repos of a level at the same time', () async {
+      allowParallel(2);
+
+      // Neither repo gets through its publish before the other one is
+      // under way.
+      final bothStarted = Completer<void>();
+      var started = 0;
+      onPublish = (repo, _) async {
+        events.add('start $repo');
+        if (++started == 2) {
+          bothStarted.complete();
+        }
+        await bothStarted.future.timeout(noWait);
+        events.add('end $repo');
+      };
+
+      await publishRunner({'A': [], 'B': []})
+          .run(['publish', '--input', ticketDir.path]);
+
+      expect(publishEvents().take(2), ['start A', 'start B']);
+      expect(publishEvents().skip(2), unorderedEquals(['end A', 'end B']));
+
+      // The output reads repo by repo all the same.
+      expect(messages.where((m) => m == '\nA' || m == '\nB'), ['\nA', '\nB']);
+      expect(messages, contains('\nAll repos published\n'));
+    });
+
+    test('starts a repo when the repos it depends on are through and '
+        'visible', () async {
+      allowParallel(3);
+
+      // A and B are under way together; C just takes its moment.
+      final bothStarted = Completer<void>();
+      var started = 0;
+      onPublish = (repo, options) async {
+        if (repo == 'C') {
+          return publishSlowly(repo, options);
+        }
+        events.add('start $repo');
+        if (++started == 2) {
+          bothStarted.complete();
+        }
+        await bothStarted.future.timeout(noWait);
+        events.add('end $repo');
+      };
+
+      await publishRunner({
+        'A': [],
+        'B': [],
+        'C': ['A', 'B'],
+      }).run(['publish', '--input', ticketDir.path]);
+
+      // A and B side by side, C after both.
+      expect(publishEvents().take(2), ['start A', 'start B']);
+      expect(publishEvents().last, 'end C');
+      expect(publishEvents()[4], 'start C');
+
+      // Between the levels: one margin for the whole level, then the
+      // registries have to show what C resolves against. C itself is waited
+      // for at the end.
+      final endOfFirstLevel = [
+        events.indexOf('end A'),
+        events.indexOf('end B'),
+      ].reduce((a, b) => a > b ? a : b);
+      final betweenLevels = events.sublist(
+        endOfFirstLevel + 1,
+        events.indexOf('start C'),
+      );
+      expect(betweenLevels.first, 'settle');
+      expect(
+        betweenLevels.skip(1),
+        unorderedEquals(['visible A', 'visible B']),
+      );
+      expect(delays, [const Duration(seconds: 10)]);
+      expect(events.last, 'visible C');
+    });
+
+    test('lets the repos of a level finish when one of them fails, stops '
+        'before the next level, and resumes what is not published', () async {
+      allowParallel(2);
+      const repos = {
+        'A': <String>[],
+        'B': <String>[],
+        'C': ['A'],
+      };
+
+      // A fails while B is in the middle of its publish.
+      final bStarted = Completer<void>();
+      final aFailed = Completer<void>();
+      onPublish = (repo, _) async {
+        events.add('start $repo');
+        if (repo == 'A') {
+          await bStarted.future.timeout(noWait);
+          aFailed.complete();
+          throw Exception('Publish failed for A');
+        }
+        bStarted.complete();
+        await aFailed.future.timeout(noWait);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        events.add('end $repo');
+      };
+
+      await expectLater(
+        publishRunner(repos).run(['publish', '--input', ticketDir.path]),
+        throwsA(
+          isA<Exception>().having(
+            (e) => rmControls('$e'),
+            'message',
+            contains('Publish failed for A'),
+          ),
+        ),
+      );
+
+      // B was not abandoned half way, C never started.
+      expect(publishEvents(), ['start A', 'start B', 'end B']);
+      expect(statusOf('A'), 'failed');
+      expect(statusOf('B'), 'published');
+      expect(statusOf('C'), isNot('published'));
+      expect(messages, contains(contains('✗ Publishing A failed')));
+
+      // The resume publishes A and, after it, C. B is done.
+      events.clear();
+      messages.clear();
+      onPublish = publishSlowly;
+
+      await publishRunner(repos)
+          .run(['publish', '--input', ticketDir.path, '--continue']);
+
+      expect(publishEvents(), ['start A', 'end A', 'start C', 'end C']);
+      expect(messages, contains(contains('B already published')));
+      expect(messages, contains('\nAll repos published\n'));
+    });
+
+    test('shows the first-publish question at once, also of a repo whose '
+        'output is held back', () async {
+      allowParallel(2);
+
+      // The gate of a package that was never published asks the user to
+      // publish it by hand and waits for the answer.
+      final bAsked = Completer<void>();
+      when(
+        () => mockEnsureInRegistry.ensure(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((invocation) async {
+        final dir = invocation.namedArguments[#directory] as Directory;
+        final log = invocation.namedArguments[#ggLog] as GgLog;
+        final repo = path.basename(dir.path);
+        log('Please publish $repo by hand');
+        if (repo == 'B') {
+          bAsked.complete();
+        }
+      });
+
+      // A is still in the middle of its publish when B asks. B's other
+      // output waits for A; the question must not.
+      onPublish = (repo, _) async {
+        if (repo == 'A') {
+          await bAsked.future.timeout(noWait);
+          expect(messages, contains('Please publish B by hand'));
+          expect(messages, isNot(contains('\nB')));
+        }
+      };
+
+      await publishRunner({'A': [], 'B': []})
+          .run(['publish', '--input', ticketDir.path]);
+
+      expect(messages, contains('\nB'));
+    });
+
+    test('checks only as many repos at once as the machine takes heavy '
+        'tasks', () async {
+      // Eight processors: two heavy tasks at a time — but four releases
+      // side by side, because most of a release is waiting for a remote.
+      GgPlatformDelegate.current = _Machine(processors: 8);
+      expect(gg.GgParallelism.heavy, 2);
+      expect(gg.GgParallelism.publishes, 4);
+
+      // `gg can commit` runs the tests of a repo. A check stays until a
+      // second repo is being checked as well, and then a moment longer: a
+      // third one would show up in that time.
+      var checking = 0;
+      var mostAtOnce = 0;
+      final twoChecking = Completer<void>();
+      final mockGgCanCommit = MockGgCanCommit();
+      when(
+        () => mockGgCanCommit.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+        ),
+      ).thenAnswer((_) async {
+        checking++;
+        if (checking > mostAtOnce) {
+          mostAtOnce = checking;
+        }
+        if (checking == 2 && !twoChecking.isCompleted) {
+          twoChecking.complete();
+        }
+        await twoChecking.future.timeout(noWait);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        checking--;
+      });
+      onPublish = publishSlowly;
+
+      await publishRunner(
+        {'A': [], 'B': [], 'C': [], 'D': []},
+        ggCanCommit: mockGgCanCommit,
+      ).run(['publish', '--input', ticketDir.path]);
+
+      expect(mostAtOnce, 2);
+      expect(publishEvents().where((e) => e.startsWith('end')), hasLength(4));
+    });
+
+    test('lets one upload at a time use the terminal', () async {
+      allowParallel(2);
+
+      // Both repos reach their upload at the same moment. gg_one hands the
+      // upload to the function it got as an option.
+      final bothStarted = Completer<void>();
+      var started = 0;
+      onPublish = (repo, options) async {
+        if (++started == 2) {
+          bothStarted.complete();
+        }
+        await bothStarted.future.timeout(noWait);
+
+        final exclusively =
+            options[gg.uploadExclusivelyOption] as gg.RunExclusively;
+        await exclusively(() async {
+          events.add('upload starts $repo');
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          events.add('upload ends $repo');
+        });
+      };
+
+      await publishRunner({'A': [], 'B': []})
+          .run(['publish', '--input', ticketDir.path]);
+
+      // No upload starts while another one is under way.
+      final uploads = events.where((e) => e.startsWith('upload')).toList();
+      expect(uploads, hasLength(4));
+      for (var i = 0; i < uploads.length; i += 2) {
+        expect(uploads[i], startsWith('upload starts'));
+        expect(uploads[i + 1], uploads[i].replaceFirst('starts', 'ends'));
+      }
+    });
+  });
+}
+
+// .............................................................................
+/// A machine on which `GG_PARALLEL` is set to [parallel].
+class _Parallel extends GgPlatformDelegate {
+  _Parallel(String parallel)
+    : environment = {
+        ...Platform.environment,
+        gg.GgParallelism.environmentVariable: parallel,
+      };
+
+  @override
+  final Map<String, String> environment;
+}
+
+// .............................................................................
+/// A machine with [processors] on which `GG_PARALLEL` is not set.
+class _Machine extends GgPlatformDelegate {
+  _Machine({required this.processors})
+    : environment = {...Platform.environment}
+        ..remove(gg.GgParallelism.environmentVariable);
+
+  final int processors;
+
+  @override
+  final Map<String, String> environment;
+
+  @override
+  int get numberOfProcessors => processors;
 }
 
 // Mock for ProcessRunner
@@ -8880,6 +9477,23 @@ DoPublishCommand makePublishCommand({
       ),
     ).thenAnswer((_) async {});
     ticketState = mock;
+  }
+  // No test asks a registry for real. The planner looks up the version a
+  // repo last published to predict the next one; the real lookup goes to
+  // pub.dev, or starts `npm view` for a TypeScript package — that one test
+  // took 29 of its 30 seconds, and failed whenever the machine was busy.
+  // The stand-in fails the way the lookup fails for a package no registry
+  // knows — the made-up packages of these tests — and the planner then
+  // predicts nothing.
+  if (publishedVersion == null) {
+    final mock = MockPublishedVersion();
+    when(
+      () => mock.get(
+        directory: any(named: 'directory'),
+        ggLog: any(named: 'ggLog'),
+      ),
+    ).thenThrow(Exception('Failed to read the registry.'));
+    publishedVersion = mock;
   }
   // Tests drive the cleanup offer directly — unlike the real `~/.gg_rc`
   // default, which skips it — so the question keeps being asked unless a

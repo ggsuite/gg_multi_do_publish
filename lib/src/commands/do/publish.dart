@@ -314,13 +314,14 @@ class DoPublishCommand extends DirCommand<void> {
   /// cleanup offer below is asked at all.
   final ReadSettings _readSettings;
 
-  /// Safety buffer after every repo's publish, before the next repo in the
-  /// ticket starts — independent of whether it depends on the package just
-  /// released. [PubDevChecker]/[NpmRegistryChecker] already wait for a
-  /// dependent repo's specific version to become visible; this is a flat
-  /// margin on top, because a registry can report a version as visible while
-  /// it is still propagating (the same class of race pnpm guards against
-  /// with `minimumReleaseAge`).
+  /// Safety buffer after a level of repos, when a repo published later in
+  /// the run depends on one of them, before the next level starts.
+  /// [PubDevChecker]/[NpmRegistryChecker] already wait for a dependent
+  /// repo's specific version to become visible; this is a flat margin on
+  /// top, because a registry can report a version as visible while it is
+  /// still propagating (the same class of race pnpm guards against with
+  /// `minimumReleaseAge`). A repo nothing later resolves against needs no
+  /// margin: nobody asks the registry for it during the run.
   static const Duration _publishSettleDelay = Duration(seconds: 10);
 
   @override
@@ -593,6 +594,13 @@ class DoPublishCommand extends DirCommand<void> {
     }
 
     final publishedPackages = <String, _PublishedPackageState>{};
+
+    // The folders of the repos this ticket released — in this run or, on a
+    // resume, in the one before. Only their versions are new on a registry.
+    final releasedRepoDirs = <String>{};
+
+    // Which repo of the ticket depends on which.
+    final dependencies = _directDependencies(subs);
     final confirmedPubDevVersions = <String>{};
 
     // Map of reference name to version captured from repos processed so far.
@@ -603,8 +611,30 @@ class DoPublishCommand extends DirCommand<void> {
     // nothing but gg's own bookkeeping and everything is already out there.
     var anythingProcessed = false;
 
-    // Step 6: Iterate over each repository and publish (or resume).
-    for (final repo in subs) {
+    // What repos that are published at the same time must do one at a time.
+    final locks = _PublishLocks();
+
+    // The repos of the level being published whose upload a later repo
+    // resolves against: the registry has to settle before that repo starts.
+    final toSettle = <Node>{};
+
+    final isVerbose = verbose;
+
+    // The log of the run itself. A repo logs to a log of its own, which is
+    // held back while a repo before it is still under way — a question to
+    // the user must not wait in there.
+    final GgLog runLog = ggLog;
+
+    /// Whether this run publishes [repo]: the plan says so and no earlier run
+    /// did it already.
+    bool publishes(Node repo) =>
+        !(continueRun && stateOf(repo.directory).status == 'published') &&
+        plan.publishes.contains(path.basename(repo.directory.path));
+
+    /// Publishes [repo] — or skips it, or notes that an earlier run published
+    /// it — and captures its version for the repos that depend on it.
+    Future<void> processRepo(Node repo, GgLog ggLog) async {
+      final GgLog taskLog = isVerbose ? ggLog : <String>[].add;
       final repoDir = repo.directory;
       final repoName = path.basename(repoDir.path);
 
@@ -625,18 +655,22 @@ class DoPublishCommand extends DirCommand<void> {
 
       if (alreadyPublished) {
         ggLog('\n${cH1(repoName)} already $_done — skipping.');
+        releasedRepoDirs.add(repoDir.path);
       } else if (skip) {
         // The planning pass already reported the verdict per repo.
         await recordStatus(repoDir, 'skipped');
       } else {
-        await _waitForPublishedDependenciesIfNeeded(
-          currentRepo: repo,
-          publishedPackages: publishedPackages,
-          confirmedPubDevVersions: confirmedPubDevVersions,
-          ggLog: ggLog,
-        );
-
         ggLog('\n${cH1(repoName)}');
+
+        // A registry takes minutes to show a fresh upload. The run only has
+        // to sit that out for a repo that one of the repos published later
+        // resolves against. The version of every other repo becomes visible
+        // while the run goes on, and Step 6b waits for all of them at once.
+        final neededLater = subs.any(
+          (other) =>
+              plan.publishes.contains(path.basename(other.directory.path)) &&
+              _allDependencies(other, dependencies).contains(repo),
+        );
 
         // Save the repo state so a failed publish can restore it.
         final snapshot = await _saveRepoState(repoDir: repoDir, ggLog: taskLog);
@@ -652,9 +686,12 @@ class DoPublishCommand extends DirCommand<void> {
             pr: prArg,
             force: force,
             pana: usePana,
-            verbose: verbose,
+            waitUntilPublished: neededLater,
+            locks: locks,
+            verbose: isVerbose,
             ggLog: ggLog,
             taskLog: taskLog,
+            promptLog: runLog,
           );
         } catch (e) {
           // Record the failure so `--continue` resumes here, report why,
@@ -674,23 +711,28 @@ class DoPublishCommand extends DirCommand<void> {
         // below — so a transient failure there cannot lose the marker and
         // re-run this already-published repo on a later `--continue`.
         anythingProcessed = true;
+        releasedRepoDirs.add(repoDir.path);
         await recordStatus(repoDir, 'published');
         taskLog(cDetail('✓ $repoName: $_done successfully.'));
 
         // The release is irreversible and complete — bring the repo back
         // into its workable workspace state: feature branch, restored
-        // references.
-        await _restoreWorkspaceState(
-          repoDir: repoDir,
-          repoName: repoName,
-          snapshot: snapshot,
-          ggLog: ggLog,
-          taskLog: taskLog,
+        // references. One repo at a time: re-localizing reads and writes the
+        // repos it depends on, and so does the repo next to it.
+        await locks.workspace.use(
+          () => _restoreWorkspaceState(
+            repoDir: repoDir,
+            repoName: repoName,
+            snapshot: snapshot,
+            ggLog: ggLog,
+            taskLog: taskLog,
+          ),
         );
 
         // A merge-only run uploads nothing to a registry — nothing to settle.
-        if (!isMergeOnly) {
-          await _delay(_publishSettleDelay);
+        // Neither is there for a repo no later repo resolves against.
+        if (!isMergeOnly && neededLater) {
+          toSettle.add(repo);
         }
       }
 
@@ -751,9 +793,71 @@ class DoPublishCommand extends DirCommand<void> {
       }
     }
 
+    // Step 6: Publish (or resume) the repositories level by level. The repos
+    // of a level do not depend on each other, only on repos of the levels
+    // before — so they need nothing from one another and are published at
+    // the same time: [gg.GgParallelism.publishes] of them, a small number
+    // that does not grow with the machine, because every release pushes,
+    // opens or merges a pull request and uploads. `GG_PARALLEL=1` publishes
+    // one repo after the other. What the repos would trip over each other
+    // with is serialized by [_PublishLocks]; their output appears repo by
+    // repo.
+    //
+    // A repo that fails does not stop the repos of its level that are under
+    // way: a publish is not something to abandon half way. They finish and
+    // are recorded, no further repo starts, and the failure of the first
+    // failed repo ends the run before the next level. `--continue` picks up
+    // every repo that is not published.
+    for (final level in _levels(subs, dependencies)) {
+      // The repos of this level resolve against what the levels before
+      // released: wait until the registries show it — every package once,
+      // all of them at the same time.
+      final levelDependencies = {
+        for (final repo in level.where(publishes))
+          for (final dependency in _allDependencies(repo, dependencies))
+            dependency.directory.path,
+      };
+      await _waitForPublishedPackages(
+        states: publishedPackages.values.where(
+          (state) => levelDependencies.contains(state.repoDirPath),
+        ),
+        confirmedPubDevVersions: confirmedPubDevVersions,
+        ggLog: ggLog,
+      );
+
+      await gg.runInParallel<void>(
+        count: level.length,
+        maxParallel: gg.GgParallelism.publishes,
+        ggLog: ggLog,
+        task: (index, ggLog) => processRepo(level[index], ggLog),
+      );
+
+      // One margin for the whole level, before the next one resolves
+      // against its uploads.
+      if (toSettle.isNotEmpty) {
+        toSettle.clear();
+        await _delay(_publishSettleDelay);
+      }
+    }
+
     // Repos the run left unpublished on purpose are reported per repo while
     // they are skipped — a summary line adds nothing and reads like a
     // failure.
+
+    // Step 6b: Wait for the released versions no later repo had to wait for
+    // — all of them at the same time, so the run pays for the slowest
+    // registry answer once instead of once per repo. Everything is released
+    // at this point; a version that does not show up in time fails the run
+    // before the ticket is closed, and `--continue` waits for it again. The
+    // version of a skipped repo is not waited for: this ticket uploaded
+    // nothing for it.
+    await _waitForPublishedPackages(
+      states: publishedPackages.values.where(
+        (state) => releasedRepoDirs.contains(state.repoDirPath),
+      ),
+      confirmedPubDevVersions: confirmedPubDevVersions,
+      ggLog: ggLog,
+    );
 
     // Step 7: All repos processed — the resume anchors are no longer needed.
     // The per-repo files are removed by gg_one's publish; what is left here
@@ -979,55 +1083,71 @@ class DoPublishCommand extends DirCommand<void> {
     required bool? pr,
     required bool force,
     required bool pana,
+    required bool waitUntilPublished,
+    required _PublishLocks locks,
     required bool verbose,
     required GgLog ggLog,
     required GgLog taskLog,
+    required GgLog promptLog,
   }) async {
-    // Make sure the repo-level runtime file gg_one writes is gitignored —
-    // the entry rides along the force-commit below, no extra commit needed.
-    await _ensureIgnored.ensure(directory: repoDir, commit: false);
-
-    // Save the pubspec_overrides.yaml before the unlocalization below
-    // deletes it — _restoreWorkspaceState puts it back once the repo is
-    // merged, so the workspace wiring survives the publish. On a resume the
-    // file is usually gone already; the backup of the first attempt is then
-    // left untouched.
-    if (gg.backupPubspecOverrides(repoDir)) {
-      taskLog(
-        cDetail(
-          '✓ $repoName: saved pubspec_overrides.yaml to '
-          '${gg.pubspecOverridesBackupPath}.',
-        ),
-      );
-    }
-
     // A repo that already carries gg_one step progress is past the point
     // where validation is meaningful — its version is bumped and possibly
     // uploaded, so upgrading or re-checking it would touch a mid-publish
     // state. The gate below skips for the same reason.
     final skipValidation = resume && repoHasPublishStepProgress(repoDir);
 
-    await _changeRefsToPubDev(
-      repoDir: repoDir,
-      repoName: repoName,
-      refVersions: refVersions,
-      taskLog: taskLog,
-      // On the normal path the upgrade below runs »dart pub upgrade« anyway
-      // — refreshing the Dart side here as well would resolve every repo
-      // twice. Only the resume path, which skips the upgrade, still needs
-      // the Dart refresh.
-      refreshDart: skipValidation,
-    );
+    // Rewriting the references and resolving the dependencies: one repo at
+    // a time, also when several are published side by side.
+    await locks.workspace.use(() async {
+      // Make sure the repo-level runtime file gg_one writes is gitignored —
+      // the entry rides along the force-commit below, no extra commit
+      // needed.
+      await _ensureIgnored.ensure(directory: repoDir, commit: false);
 
-    // Upgrade the dependencies and re-verify with `gg can commit` before
-    // anything is published. The refs point at the registry again, so
-    // »dart pub upgrade --tighten« resolves against the sibling versions
-    // published earlier in this run. gg_one's `can publish` runs no
-    // analyze/format/tests — without this step the post-upgrade state
-    // would never be validated. Output stays visible.
+      // Save the pubspec_overrides.yaml before the unlocalization below
+      // deletes it — _restoreWorkspaceState puts it back once the repo is
+      // merged, so the workspace wiring survives the publish. On a resume
+      // the file is usually gone already; the backup of the first attempt
+      // is then left untouched.
+      if (gg.backupPubspecOverrides(repoDir)) {
+        taskLog(
+          cDetail(
+            '✓ $repoName: saved pubspec_overrides.yaml to '
+            '${gg.pubspecOverridesBackupPath}.',
+          ),
+        );
+      }
+
+      await _changeRefsToPubDev(
+        repoDir: repoDir,
+        repoName: repoName,
+        refVersions: refVersions,
+        taskLog: taskLog,
+        // On the normal path the upgrade below runs »dart pub upgrade«
+        // anyway — refreshing the Dart side here as well would resolve
+        // every repo twice. Only the resume path, which skips the upgrade,
+        // still needs the Dart refresh.
+        refreshDart: skipValidation,
+      );
+
+      // Upgrade the dependencies before anything is published. The refs
+      // point at the registry again, so »dart pub upgrade --tighten«
+      // resolves against the sibling versions published earlier in this
+      // run. Output stays visible.
+      if (!skipValidation) {
+        await _ggDoUpgradeDeps.exec(directory: repoDir, ggLog: ggLog);
+      }
+    });
+
+    // Re-verify with `gg can commit`. gg_one's `can publish` runs no
+    // analyze/format/tests — without this step the post-upgrade state would
+    // never be validated. Each check stays in its own repo, so repos
+    // published side by side are checked side by side — as many as the
+    // machine takes heavy tasks, the others wait for their turn.
     if (!skipValidation) {
-      await _ggDoUpgradeDeps.exec(directory: repoDir, ggLog: ggLog);
-      await _ggCanCommit.exec(directory: repoDir, ggLog: ggLog);
+      await locks.checks.use(
+        () => _ggCanCommit.exec(directory: repoDir, ggLog: ggLog),
+      );
     }
 
     // Commit — sweeps the reference changes and the upgrade changes into
@@ -1082,11 +1202,14 @@ class DoPublishCommand extends DirCommand<void> {
       );
     }
 
+    // pana analyzes the package with an analyzer of its own: heavy as well.
     if (!skipValidation) {
-      await _canPublishCommand.checkRepo(
-        directory: repoDir,
-        ggLog: ggLog,
-        pana: repoPana,
+      await locks.checks.use(
+        () => _canPublishCommand.checkRepo(
+          directory: repoDir,
+          ggLog: ggLog,
+          pana: repoPana,
+        ),
       );
     }
 
@@ -1100,8 +1223,13 @@ class DoPublishCommand extends DirCommand<void> {
     // now, while the refs are unlocalized and the publish target is
     // restored, so the current folder is publishable as-is. A merge-only
     // run releases nothing to a registry, so there is nothing to ensure.
+    // The gate asks on the terminal — one repo at a time, and through the
+    // log of the run: the user has to see the question the moment it is
+    // asked, not when the repos before this one are through.
     if (!mergeOnly) {
-      await _ensureInRegistry.ensure(directory: repoDir, ggLog: ggLog);
+      await locks.terminal.use(
+        () => _ensureInRegistry.ensure(directory: repoDir, ggLog: promptLog),
+      );
     }
 
     // The publish configuration is always resolved up front, so every repo
@@ -1142,7 +1270,16 @@ class DoPublishCommand extends DirCommand<void> {
       // versions this run published earlier. gg_one's own upgrade would
       // resolve the very same repo a second time without changing anything.
       upgrade: false,
-      options: <String, dynamic>{gg.panaOption: repoPana},
+      options: <String, dynamic>{
+        gg.panaOption: repoPana,
+        // gg_one waits until the registry shows the upload. That is only
+        // needed before a repo that resolves against it; otherwise this run
+        // waits for the version at its end.
+        gg.waitUntilPublishedOption: waitUntilPublished,
+        // An upload can ask for a one-time password on the terminal — one
+        // upload at a time.
+        gg.uploadExclusivelyOption: locks.uploadExclusively,
+      },
     );
   }
 
@@ -1824,45 +1961,131 @@ class DoPublishCommand extends DirCommand<void> {
     );
   }
 
-  /// Waits for already published dependencies of [currentRepo] on pub.dev.
-  Future<void> _waitForPublishedDependenciesIfNeeded({
-    required Node currentRepo,
-    required Map<String, _PublishedPackageState> publishedPackages,
+  // ...........................................................................
+  /// Waits until the registries show every package of [states], all of them
+  /// at the same time. Packages already confirmed are not asked again.
+  ///
+  /// Every wait runs to its end, also when another one fails; then the
+  /// first failure is thrown.
+  Future<void> _waitForPublishedPackages({
+    required Iterable<_PublishedPackageState> states,
     required Set<String> confirmedPubDevVersions,
     required GgLog ggLog,
   }) async {
-    if (publishedPackages.isEmpty) {
+    await Future.wait([
+      for (final state in states)
+        _waitForPublishedPackage(
+          state: state,
+          confirmedPubDevVersions: confirmedPubDevVersions,
+          ggLog: ggLog,
+        ),
+    ]);
+  }
+
+  // ...........................................................................
+  /// Waits until the registry of [state] shows its version, and notes that
+  /// in [confirmedPubDevVersions] so the version is asked for only once.
+  Future<void> _waitForPublishedPackage({
+    required _PublishedPackageState state,
+    required Set<String> confirmedPubDevVersions,
+    required GgLog ggLog,
+  }) async {
+    final cacheKey = '${state.packageName}@${state.version}';
+    if (!state.waitsForPubDev || confirmedPubDevVersions.contains(cacheKey)) {
       return;
     }
 
-    final waitingStates = publishedPackages.values.where(
-      (state) => state.waitsForPubDev,
-    );
+    // The checkers announce the wait themselves (incl. the registry's
+    // status page url), report progress while polling and fail with a
+    // bounded timeout instead of hanging.
+    await (state.target == gg_lang.PublishTarget.npm
+        ? _npmChecker.waitUntilVersionAvailable(
+            packageName: state.packageName,
+            version: state.version,
+            ggLog: ggLog,
+            workingDirectory: state.repoDirPath,
+          )
+        : _pubDevChecker.waitUntilVersionAvailable(
+            packageName: state.packageName,
+            version: state.version,
+            ggLog: ggLog,
+          ));
 
-    for (final state in waitingStates) {
-      final cacheKey = '${state.packageName}@${state.version}';
-      if (confirmedPubDevVersions.contains(cacheKey)) {
-        continue;
+    confirmedPubDevVersions.add(cacheKey);
+  }
+
+  // ...........................................................................
+  /// The repos of [subs] each repo depends on directly, dev dependencies
+  /// included: a repo resolves those as well when it is published.
+  ///
+  /// Read from the manifests, under every name a repo is known by, and from
+  /// the edges the nodes carry. Either source alone is enough.
+  static Map<Node, Set<Node>> _directDependencies(List<Node> subs) {
+    final byName = <String, Node>{
+      for (final node in subs)
+        for (final name in {node.name, ...node.aliases}) name: node,
+    };
+
+    return {
+      for (final node in subs)
+        node: {
+          for (final manifest in node.manifests)
+            for (final name in [
+              ...manifest.dependencies,
+              ...manifest.devDependencies,
+            ])
+              ?byName[name],
+          ...node.dependencies.values,
+        }..remove(node),
+    };
+  }
+
+  // ...........................................................................
+  /// Groups [subs] — repos in dependency order — into levels: a repo is one
+  /// level above the highest level among the repos it depends on, and on
+  /// the first level when it depends on none. So the repos of a level do
+  /// not depend on each other. Within a level the order of [subs] is kept.
+  static List<List<Node>> _levels(
+    List<Node> subs,
+    Map<Node, Set<Node>> direct,
+  ) {
+    final levelOf = <Node, int>{};
+    final levels = <List<Node>>[];
+
+    for (final repo in subs) {
+      var level = 0;
+      for (final dependency in direct[repo]!) {
+        // Dependencies come first in the list, so their level is known.
+        final dependencyLevel = levelOf[dependency];
+        if (dependencyLevel != null && dependencyLevel >= level) {
+          level = dependencyLevel + 1;
+        }
       }
+      levelOf[repo] = level;
 
-      // The checkers announce the wait themselves (incl. the registry's
-      // status page url), report progress while polling and fail with a
-      // bounded timeout instead of hanging.
-      await (state.target == gg_lang.PublishTarget.npm
-          ? _npmChecker.waitUntilVersionAvailable(
-              packageName: state.packageName,
-              version: state.version,
-              ggLog: ggLog,
-              workingDirectory: state.repoDirPath,
-            )
-          : _pubDevChecker.waitUntilVersionAvailable(
-              packageName: state.packageName,
-              version: state.version,
-              ggLog: ggLog,
-            ));
-
-      confirmedPubDevVersions.add(cacheKey);
+      if (level == levels.length) {
+        levels.add(<Node>[]);
+      }
+      levels[level].add(repo);
     }
+
+    return levels;
+  }
+
+  // ...........................................................................
+  /// The repos [repo] depends on, directly or through other repos, following
+  /// the [direct] dependencies of each repo.
+  static Set<Node> _allDependencies(Node repo, Map<Node, Set<Node>> direct) {
+    final result = <Node>{};
+    final open = <Node>[repo];
+    while (open.isNotEmpty) {
+      for (final node in direct[open.removeLast()] ?? const <Node>{}) {
+        if (result.add(node)) {
+          open.add(node);
+        }
+      }
+    }
+    return result;
   }
 
   /// Refreshes dependencies for [repoDir] based on the detected project
@@ -2008,6 +2231,29 @@ class DoPublishCommand extends DirCommand<void> {
       negatable: true,
     );
   }
+}
+
+/// What repos that are published at the same time do one at a time.
+class _PublishLocks {
+  /// For the steps that rewrite the references of a repo or resolve its
+  /// dependencies. They read and write the repos next to it and the package
+  /// cache, which two of them at once would do to each other's files.
+  final gg.TaskSlots workspace = gg.TaskSlots(1);
+
+  /// For whatever uses the terminal on its own: a question to the user, an
+  /// upload that asks for a one-time password.
+  final gg.TaskSlots terminal = gg.TaskSlots(1);
+
+  /// For the checks of a repo — its tests, its analysis: as many at once as
+  /// the machine takes heavy tasks. More repos than that may be under way,
+  /// most of them waiting for a remote. The test runs that go side by side
+  /// share the machine; a repo checked on its own gets all of it.
+  final gg.TaskSlots checks = gg.TaskSlots.heavy();
+
+  /// Runs an upload when the terminal is free — what gg_one's publish takes
+  /// as [gg.uploadExclusivelyOption].
+  Future<void> uploadExclusively(Future<void> Function() upload) =>
+      terminal.use(upload);
 }
 
 /// Stores publish state for already processed repositories.

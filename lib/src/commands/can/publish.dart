@@ -307,13 +307,20 @@ class CanPublishCommand extends DirCommand<void> {
   /// package.json) do carry a Dart `pubspec.lock` that must be kept in sync.
   /// So run it for every repo and let it self-gate — the same way `can review`
   /// does.
+  ///
+  /// The repos are synced at the same time: each one resolves on its own,
+  /// from the package cache only, and writes nothing but its own lock file.
   Future<void> _pubGetOffline({
     required List<Node> subs,
     required GgLog ggLog,
   }) async {
-    for (final repo in subs) {
-      await _ggPubGetOffline.exec(directory: repo.directory, ggLog: ggLog);
-    }
+    await gg.runInParallel<void>(
+      count: subs.length,
+      maxParallel: gg.GgParallelism.light,
+      ggLog: ggLog,
+      task: (index, ggLog) =>
+          _ggPubGetOffline.exec(directory: subs[index].directory, ggLog: ggLog),
+    );
   }
 
   /// Checks for uncommitted changes in all repos.
@@ -328,14 +335,25 @@ class CanPublishCommand extends DirCommand<void> {
     required List<Node> subs,
     required GgLog ggLog,
   }) async {
+    // Ask all repos at the same time, handle the answers one by one: a
+    // commit of lock file drift is rare and logs what it did.
+    final statuses = await gg.runInParallel<String>(
+      count: subs.length,
+      maxParallel: gg.GgParallelism.light,
+      ggLog: ggLog,
+      task: (index, _) async {
+        final result = await _processRunner('git', [
+          'status',
+          '--porcelain',
+        ], workingDirectory: subs[index].directory.path);
+        return result.stdout.toString().trim();
+      },
+    );
+
     final uncommitted = <String>[];
-    for (final repo in subs) {
-      final repoDir = repo.directory;
-      final result = await _processRunner('git', [
-        'status',
-        '--porcelain',
-      ], workingDirectory: repoDir.path);
-      final status = result.stdout.toString().trim();
+    for (var i = 0; i < subs.length; i++) {
+      final repoDir = subs[i].directory;
+      final status = statuses[i];
       if (status.isEmpty) {
         continue;
       }
@@ -524,23 +542,13 @@ class CanPublishCommand extends DirCommand<void> {
     required List<Node> subs,
     required GgLog ggLog,
   }) async {
-    final failedRepos = <String>[];
-    for (final repo in subs) {
-      final repoDir = repo.directory;
-      final repoName = path.basename(repoDir.path);
-      ggLog('\n${cH1(repoName)}');
-      try {
-        await _ggNpmLoggedIn.exec(directory: repoDir, ggLog: ggLog);
-      } catch (e) {
-        ggLog(
-          [
-            cDetail('✗ Not logged in to npm'),
-            cError(rmControls('$e')),
-          ].join('\n'),
-        );
-        failedRepos.add('$repoName: ${_reasonOf(e)}');
-      }
-    }
+    final failedRepos = await _failuresOf(
+      subs: subs,
+      ggLog: ggLog,
+      failed: '✗ Not logged in to npm',
+      check: (repoDir, ggLog) =>
+          _ggNpmLoggedIn.exec(directory: repoDir, ggLog: ggLog),
+    );
     if (failedRepos.isNotEmpty) {
       ggLog(cAction('\nPlease fix the issues above.\n'));
       throw Exception(_failureMessage('Not logged in to npm.', failedRepos));
@@ -552,22 +560,52 @@ class CanPublishCommand extends DirCommand<void> {
     required List<Node> subs,
     required GgLog ggLog,
   }) async {
-    final failures = <String>[];
-    for (final repo in subs) {
-      final repoDir = repo.directory;
-      final repoName = path.basename(repoDir.path);
-      ggLog('\n${cH1(repoName)}');
-      try {
-        await _ggCanMerge.exec(directory: repoDir, ggLog: ggLog);
-      } catch (e) {
-        ggLog([cDetail('✗ Cannot merge'), cError(rmControls('$e'))].join('\n'));
-        failures.add('$repoName: ${_reasonOf(e)}');
-      }
-    }
+    final failures = await _failuresOf(
+      subs: subs,
+      ggLog: ggLog,
+      failed: '✗ Cannot merge',
+      check: (repoDir, ggLog) =>
+          _ggCanMerge.exec(directory: repoDir, ggLog: ggLog),
+    );
     if (failures.isNotEmpty) {
       ggLog(cAction('\nPlease fix the issues above.\n'));
       throw Exception(_failureMessage('Cannot merge.', failures));
     }
+  }
+
+  // ...........................................................................
+  /// Runs [check] for every repository of [subs] and returns what failed as
+  /// `<repo>: <reason>`, in the order of the repos.
+  ///
+  /// The repos are checked at the same time — each check talks to the remote
+  /// or the registry of its own repo — and logged one after the other, the
+  /// way a loop would log them. A failed check is logged with [failed] below
+  /// the name of its repo and does not stop the others.
+  Future<List<String>> _failuresOf({
+    required List<Node> subs,
+    required GgLog ggLog,
+    required String failed,
+    required Future<void> Function(Directory repoDir, GgLog ggLog) check,
+  }) async {
+    final failures = await gg.runInParallel<String?>(
+      count: subs.length,
+      maxParallel: gg.GgParallelism.network,
+      ggLog: ggLog,
+      task: (index, ggLog) async {
+        final repoDir = subs[index].directory;
+        final repoName = path.basename(repoDir.path);
+        ggLog('\n${cH1(repoName)}');
+        try {
+          await check(repoDir, ggLog);
+          return null;
+        } catch (e) {
+          ggLog([cDetail(failed), cError(rmControls('$e'))].join('\n'));
+          return '$repoName: ${_reasonOf(e)}';
+        }
+      },
+    );
+
+    return failures.whereType<String>().toList();
   }
 
   /// Whether `--[no-]pana` was given; pana runs unless it was turned off.
