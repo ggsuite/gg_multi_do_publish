@@ -7,19 +7,19 @@ environment:
   sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
-  gg_args: ^3.2.0
+  gg_args: ^3.2.1
   gg_console_colors: ^2.5.0
-  gg_git: ^4.8.1
+  gg_git: ^4.9.0
   gg_lang: ^0.8.4
   gg_local_package_dependencies: ^4.2.4
-  gg_localize_refs: ^5.3.0
+  gg_localize_refs: ^5.4.0
   gg_log: ^1.2.0
-  gg_multi_commit: ^4.10.0
-  gg_multi_core: ^4.19.0
+  gg_multi_commit: ^4.11.0
+  gg_multi_core: ^4.20.0
   gg_one: ^14.4.13
   gg_one_do_publish: ^2.12.0
-  gg_process: ^1.4.1
-  gg_publish: ^4.10.3
+  gg_process: ^1.5.0
+  gg_publish: ^4.10.4
   gg_status_printer: ^1.6.4
   mocktail: ^1.0.5
   path: ^1.9.1
