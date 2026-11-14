@@ -25,7 +25,8 @@
     "uses": {
       "gg_multi_core": "PublishPlanner, PublishSkipCheck, TicketState, WorkspaceUtils, cleanUpTicket",
       "gg_multi_commit": "DidCommitCommand, DoPushCommand in can publish / do publish",
-      "gg_one": "per-repo publish: DoPublish, CanPublish, CanMerge, CanCommit, DoUpgradeDeps, NpmLoggedIn",
+      "gg_one_do_publish": "waitUntilPublishedOption, uploadExclusivelyOption: the options of DoPublish",
+      "gg_one": "per-repo publish: DoPublish, CanPublish, CanMerge, CanCommit, DoUpgradeDeps, NpmLoggedIn; runInParallel, GgParallelism, TaskSlots for the ticket-wide checks and the repos of a level",
       "gg_localize_refs": "UnlocalizeRefs before publish",
       "gg_local_package_dependencies": "SortedProcessingList: dependency order",
       "gg_publish": "publish helpers",
