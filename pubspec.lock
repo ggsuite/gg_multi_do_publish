@@ -271,7 +271,7 @@ packages:
       path: "../gg_args"
       relative: true
     source: path
-    version: "3.2.0"
+    version: "3.2.1"
   gg_capture_print:
     dependency: "direct dev"
     description:
@@ -309,7 +309,7 @@ packages:
       path: "../gg_git"
       relative: true
     source: path
-    version: "4.8.1"
+    version: "4.9.0"
   gg_hash:
     dependency: transitive
     description:
@@ -332,7 +332,7 @@ packages:
       path: "../gg_is_flutter"
       relative: true
     source: path
-    version: "2.2.4"
+    version: "2.2.5"
   gg_is_github:
     dependency: transitive
     description:
@@ -369,7 +369,7 @@ packages:
       path: "../gg_localize_refs"
       relative: true
     source: path
-    version: "5.3.0"
+    version: "5.4.0"
   gg_log:
     dependency: "direct main"
     description:
@@ -384,21 +384,21 @@ packages:
       path: "../gg_merge"
       relative: true
     source: path
-    version: "3.8.5"
+    version: "3.9.0"
   gg_multi_commit:
     dependency: "direct main"
     description:
       path: "../gg_multi_commit"
       relative: true
     source: path
-    version: "4.10.0"
+    version: "4.11.0"
   gg_multi_core:
     dependency: "direct main"
     description:
       path: "../gg_multi_core"
       relative: true
     source: path
-    version: "4.19.0"
+    version: "4.20.0"
   gg_one:
     dependency: "direct main"
     description:
@@ -419,14 +419,14 @@ packages:
       path: "../gg_one_core"
       relative: true
     source: path
-    version: "2.17.0"
+    version: "2.18.0"
   gg_one_do_publish:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       path: "../gg_one_do_publish"
       relative: true
     source: path
-    version: "2.11.10"
+    version: "2.12.0"
   gg_one_merge:
     dependency: "direct overridden"
     description:
@@ -440,7 +440,7 @@ packages:
       path: "../gg_process"
       relative: true
     source: path
-    version: "1.4.1"
+    version: "1.5.0"
   gg_project_root:
     dependency: "direct overridden"
     description:
@@ -454,7 +454,7 @@ packages:
       path: "../gg_publish"
       relative: true
     source: path
-    version: "4.10.3"
+    version: "4.10.4"
   gg_status_printer:
     dependency: "direct main"
     description:
@@ -469,7 +469,7 @@ packages:
       path: "../gg_test"
       relative: true
     source: path
-    version: "3.3.5"
+    version: "3.4.0"
   gg_version:
     dependency: "direct overridden"
     description:
