@@ -17,6 +17,8 @@ import 'package:gg_localize_refs/gg_localize_refs.dart';
 import 'package:gg_log/gg_log.dart';
 import 'package:gg_publish/gg_publish.dart' show PublishedVersion;
 import 'package:gg_one/gg_one.dart' as gg;
+import 'package:gg_one_do_publish/gg_one_do_publish.dart'
+    show uploadExclusivelyOption, waitUntilPublishedOption;
 import 'package:gg_process/gg_process.dart';
 import 'package:gg_status_printer/gg_status_printer.dart';
 import 'package:path/path.dart' as path;
@@ -1275,10 +1277,10 @@ class DoPublishCommand extends DirCommand<void> {
         // gg_one waits until the registry shows the upload. That is only
         // needed before a repo that resolves against it; otherwise this run
         // waits for the version at its end.
-        gg.waitUntilPublishedOption: waitUntilPublished,
+        waitUntilPublishedOption: waitUntilPublished,
         // An upload can ask for a one-time password on the terminal — one
         // upload at a time.
-        gg.uploadExclusivelyOption: locks.uploadExclusively,
+        uploadExclusivelyOption: locks.uploadExclusively,
       },
     );
   }
@@ -2251,7 +2253,7 @@ class _PublishLocks {
   final gg.TaskSlots checks = gg.TaskSlots.heavy();
 
   /// Runs an upload when the terminal is free — what gg_one's publish takes
-  /// as [gg.uploadExclusivelyOption].
+  /// as [uploadExclusivelyOption].
   Future<void> uploadExclusively(Future<void> Function() upload) =>
       terminal.use(upload);
 }

@@ -6,13 +6,12 @@
 
 - Add the blog post and describe the levels
 
-Add the blog post of the change
-README: publishing level by level
-Tighten the dependencies
-
 ### Changed
 
 - Publish the repos of a dependency level at once
+- Depend on gg_one_do_publish for its publish options
+
+waitUntilPublishedOption and uploadExclusivelyOption came through gg_one, whose lowest allowed gg_one_do_publish does not have them: the analysis with downgraded dependencies failed
 
 ## 4.7.2 - 2026-11-10
 
