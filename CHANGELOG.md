@@ -1,12 +1,10 @@
 # Changelog
 
-## Unreleased
+## 4.9.0 - 2026-11-15
 
 ### Added
 
 - Add the blog post about the lean publish
-
-index.jsonc: pub get + analyze, Analyze of gg_one
 
 ### Changed
 
