@@ -162,12 +162,13 @@ packages:
     source: hosted
     version: "0.4.0"
   dna_gg:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../dna_gg"
-      relative: true
-    source: path
-    version: "1.6.0"
+      name: dna_gg
+      sha256: a2f134caeb93fbf66d055670d4d575e13d8ec4e0441fbad870945834554bb2ee
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.6.1"
   dna_ggsuite:
     dependency: "direct dev"
     description:
@@ -395,10 +396,11 @@ packages:
   gg_multi_commit:
     dependency: "direct main"
     description:
-      path: "../gg_multi_commit"
-      relative: true
-    source: path
-    version: "4.11.1"
+      name: gg_multi_commit
+      sha256: "634152ecd420d483e32b88f92bd0aed0665f0b90b8b80f0cd3f3baaf1bc8a26b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.12.0"
   gg_multi_core:
     dependency: "direct main"
     description:
@@ -416,26 +418,29 @@ packages:
     source: hosted
     version: "14.4.13"
   gg_one_commit:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../gg_one_commit"
-      relative: true
-    source: path
-    version: "2.10.0"
+      name: gg_one_commit
+      sha256: "345b24be6ea3a7335e045837b89fbd167a3fd3543b30f9ff3ee4b1f8c1aab07c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.10.1"
   gg_one_core:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../gg_one_core"
-      relative: true
-    source: path
-    version: "2.19.0"
+      name: gg_one_core
+      sha256: "5fade9f261d685c7fb5cfefb66bc1106053863cb3cb53ed1b35e5538ba820774"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.20.0"
   gg_one_do_publish:
     dependency: "direct main"
     description:
-      path: "../gg_one_do_publish"
-      relative: true
-    source: path
-    version: "2.12.0"
+      name: gg_one_do_publish
+      sha256: "4dfa4ac40ad0a1f930e87dce10fa1640d296dde66a4083ead5aba599aba2c8b7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.13.0"
   gg_one_merge:
     dependency: transitive
     description:
