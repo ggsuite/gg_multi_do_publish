@@ -2,13 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- Add the blog post about the lean publish
+
+index.jsonc: pub get + analyze, Analyze of gg_one
+
 ### Changed
 
 - Resolve and analyze before a publish, upgrade nothing
-
-Run dart pub get or <pm> install instead of dart pub upgrade
-Run Analyze instead of gg can commit before the release
-Replace ggDoUpgradeDeps and ggCanCommit by ggAnalyze
 
 ## 4.8.0 - 2026-11-14
 
