@@ -128,8 +128,7 @@ class DoPublishCommand extends DirCommand<void> {
     super.description = 'Publish all repos of the current ticket',
     this.mergeOnly = false,
     gg.GgSystemCommit? systemCommit,
-    gg.DoUpgradeDeps? ggDoUpgradeDeps,
-    gg.CanCommit? ggCanCommit,
+    gg.Analyze? ggAnalyze,
     ChangeRefsToPubDev? unlocalizeRefs,
     ChangeRefsToLocal? localizeRefs,
     RestorePublishTo? restorePublishTo,
@@ -158,8 +157,7 @@ class DoPublishCommand extends DirCommand<void> {
     Future<void> Function(Duration duration)? delay,
     ReadSettings? readSettings,
   }) : _systemCommit = systemCommit ?? gg.GgSystemCommit(ggLog: ggLog),
-       _ggDoUpgradeDeps = ggDoUpgradeDeps ?? gg.DoUpgradeDeps(ggLog: ggLog),
-       _ggCanCommit = ggCanCommit ?? gg.CanCommit(ggLog: ggLog),
+       _ggAnalyze = ggAnalyze ?? gg.Analyze(ggLog: ggLog),
        _unlocalizeRefs = unlocalizeRefs ?? ChangeRefsToPubDev(ggLog: ggLog),
        _localizeRefs = localizeRefs ?? ChangeRefsToLocal(ggLog: ggLog),
        _restorePublishTo = restorePublishTo ?? RestorePublishTo(ggLog: ggLog),
@@ -222,13 +220,13 @@ class DoPublishCommand extends DirCommand<void> {
   /// with any pending user work saved in its own commit first.
   final gg.GgSystemCommit _systemCommit;
 
-  /// Upgrades the dependencies of a repo right before it is published.
-  final gg.DoUpgradeDeps _ggDoUpgradeDeps;
-
-  /// Re-verifies a repo after references were unlocalized and its
-  /// dependencies were upgraded — gg_one's `can publish` runs no
-  /// analyze/format/tests, so this closes that gap.
-  final gg.CanCommit _ggCanCommit;
+  /// Analyzes a repo after its references point at the registry again.
+  ///
+  /// A publish neither upgrades nor tests: the tests passed at the commit,
+  /// and the sibling versions this run publishes are the very commits that
+  /// were tested through the local references. What can still break is the
+  /// resolution against the registry — that is what get and analyze check.
+  final gg.Analyze _ggAnalyze;
 
   /// Instance of UnlocalizeRefs
   final ChangeRefsToPubDev _unlocalizeRefs;
@@ -1073,8 +1071,9 @@ class DoPublishCommand extends DirCommand<void> {
   }
 
   /// Performs the per-repo publish steps: unlocalize refs, restore
-  /// publish_to, propagate reference versions, refresh dependencies, commit,
-  /// check that this repo can be published, push and finally `gg do publish`.
+  /// publish_to, propagate reference versions, resolve the dependencies
+  /// (get, not upgrade), analyze, commit, check that this repo can be
+  /// published, push and finally `gg do publish`.
   Future<void> _publishRepo({
     required Directory repoDir,
     required String repoName,
@@ -1094,8 +1093,8 @@ class DoPublishCommand extends DirCommand<void> {
   }) async {
     // A repo that already carries gg_one step progress is past the point
     // where validation is meaningful — its version is bumped and possibly
-    // uploaded, so upgrading or re-checking it would touch a mid-publish
-    // state. The gate below skips for the same reason.
+    // uploaded, so re-checking it would touch a mid-publish state. The gate
+    // below skips for the same reason.
     final skipValidation = resume && repoHasPublishStepProgress(repoDir);
 
     // Rewriting the references and resolving the dependencies: one repo at
@@ -1120,41 +1119,31 @@ class DoPublishCommand extends DirCommand<void> {
         );
       }
 
+      // The refs point at the registry again and carry the versions this
+      // run published; »dart pub get« resolves them and changes nothing
+      // else. Upgrading the other dependencies is left to maintenance.
       await _changeRefsToPubDev(
         repoDir: repoDir,
         repoName: repoName,
         refVersions: refVersions,
         taskLog: taskLog,
-        // On the normal path the upgrade below runs »dart pub upgrade«
-        // anyway — refreshing the Dart side here as well would resolve
-        // every repo twice. Only the resume path, which skips the upgrade,
-        // still needs the Dart refresh.
-        refreshDart: skipValidation,
       );
-
-      // Upgrade the dependencies before anything is published. The refs
-      // point at the registry again, so »dart pub upgrade --tighten«
-      // resolves against the sibling versions published earlier in this
-      // run. Output stays visible.
-      if (!skipValidation) {
-        await _ggDoUpgradeDeps.exec(directory: repoDir, ggLog: ggLog);
-      }
     });
 
-    // Re-verify with `gg can commit`. gg_one's `can publish` runs no
-    // analyze/format/tests — without this step the post-upgrade state would
-    // never be validated. Each check stays in its own repo, so repos
-    // published side by side are checked side by side — as many as the
-    // machine takes heavy tasks, the others wait for their turn.
+    // Analyze instead of `gg can commit`: the tests passed at the commit,
+    // and nothing but the references changed since. The analysis proves
+    // that the code still compiles against the published versions. Each
+    // check stays in its own repo, so repos published side by side are
+    // checked side by side — as many as the machine takes heavy tasks, the
+    // others wait for their turn.
     if (!skipValidation) {
       await locks.checks.use(
-        () => _ggCanCommit.exec(directory: repoDir, ggLog: ggLog),
+        () => _ggAnalyze.exec(directory: repoDir, ggLog: ggLog),
       );
     }
 
-    // Commit — sweeps the reference changes and the upgrade changes into
-    // one bookkeeping commit.
-    // A system commit: the ref and upgrade changes are gg's own. Anything
+    // Commit — sweeps the reference changes into one bookkeeping commit.
+    // A system commit: the ref changes are gg's own. Anything
     // else the tree carries is the user's and gets its own, prefix-less
     // commit first, so the release history says who wrote what.
     await _systemCommit.commit(
@@ -1267,10 +1256,8 @@ class DoPublishCommand extends DirCommand<void> {
       pr: pr,
       mergeOnly: mergeOnly,
       force: force,
-      // The ticket-wide flow upgraded this repo itself a few steps above —
-      // in dependency order, so »--tighten« resolved against the sibling
-      // versions this run published earlier. gg_one's own upgrade would
-      // resolve the very same repo a second time without changing anything.
+      // A publish resolves, it does not upgrade: the only constraints that
+      // move are those of the repos this run published.
       upgrade: false,
       options: <String, dynamic>{
         gg.panaOption: repoPana,
@@ -1408,7 +1395,6 @@ class DoPublishCommand extends DirCommand<void> {
     required String repoName,
     required Map<String, String> refVersions,
     required GgLog taskLog,
-    bool refreshDart = true,
   }) async {
     try {
       await _unlocalizeRefs.get(directory: repoDir, ggLog: taskLog);
@@ -1455,7 +1441,6 @@ class DoPublishCommand extends DirCommand<void> {
       repoDir: repoDir,
       repoName: repoName,
       ggLog: taskLog,
-      includeDart: refreshDart,
     );
   }
 
@@ -2091,13 +2076,14 @@ class DoPublishCommand extends DirCommand<void> {
   }
 
   /// Refreshes dependencies for [repoDir] based on the detected project
-  /// type. Runs `dart pub upgrade` for Dart/Flutter packages and the
-  /// equivalent install command for TypeScript packages (npm/yarn/pnpm).
+  /// type. Runs `dart pub get` for Dart/Flutter packages and the install
+  /// command of the package manager for TypeScript packages
+  /// (npm/yarn/pnpm). Both resolve the constraints as they are and upgrade
+  /// nothing: a dependency moves only where its constraint was changed.
   Future<void> _refreshDependencies({
     required Directory repoDir,
     required String repoName,
     required GgLog ggLog,
-    bool includeDart = true,
   }) async {
     // Bridge repos refresh via their TypeScript package manager
     // (checkProjectType: bridge → TS).
@@ -2108,13 +2094,8 @@ class DoPublishCommand extends DirCommand<void> {
     switch (projectType) {
       case gg.ProjectType.dart:
       case gg.ProjectType.flutter:
-        // The caller's upgrade step (»gg do upgrade deps«) resolves the
-        // Dart side itself — skip the duplicate resolution here.
-        if (!includeDart) {
-          return;
-        }
         executable = 'dart';
-        args = <String>['pub', 'upgrade'];
+        args = <String>['pub', 'get'];
       case gg.ProjectType.typescript:
         final pm = gg.detectTypeScriptPackageManager(repoDir);
         executable = pm.executable;
@@ -2160,9 +2141,9 @@ class DoPublishCommand extends DirCommand<void> {
     // reports it as TypeScript, so the switch above only refreshed the
     // TypeScript package manager — refresh the Dart side too, so the rewritten
     // references are reflected in pubspec.lock as well. (The pnpm env override
-    // is irrelevant to `dart pub upgrade`.)
-    if (gg.isBridgeProject(repoDir) && includeDart) {
-      await runStep('dart', <String>['pub', 'upgrade'], null);
+    // is irrelevant to `dart pub get`.)
+    if (gg.isBridgeProject(repoDir)) {
+      await runStep('dart', <String>['pub', 'get'], null);
     }
   }
 

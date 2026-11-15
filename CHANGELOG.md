@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.9.0 - 2026-11-15
+
+### Added
+
+- Add the blog post about the lean publish
+
+### Changed
+
+- Resolve and analyze before a publish, upgrade nothing
+
 ## 4.8.0 - 2026-11-14
 
 ### Added

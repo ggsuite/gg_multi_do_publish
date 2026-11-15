@@ -14,7 +14,8 @@ and the daily flows it builds on in `gg_multi_commit`.
 - **`do publish`** — publishes every publishable repo of a ticket in
   dependency order: review gate (`did review`), up-front interactive
   configuration, ticket-wide checks, then per repo unlocalize refs,
-  propagate published versions, upgrade + re-verify, publish via
+  propagate published versions, resolve (`dart pub get`, never an
+  upgrade) and analyze — the tests passed at the commit —, publish via
   gg_one (version bump → registry upload → auto-merge pull request →
   tag), and restore the workspace state so the ticket stays workable.
   The repos are published level by level: the repos of a dependency
