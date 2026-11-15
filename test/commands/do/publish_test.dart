@@ -40,11 +40,8 @@ class MockGgDoPublish extends Mock implements gg.DoPublish {}
 /// Mock for gg DoCommit
 class MockGgSystemCommit extends Mock implements gg.GgSystemCommit {}
 
-/// Mock for gg DoUpgradeDeps
-class MockGgDoUpgradeDeps extends Mock implements gg.DoUpgradeDeps {}
-
-/// Mock for gg CanCommit
-class MockGgCanCommit extends Mock implements gg.CanCommit {}
+/// Mock for gg Analyze
+class MockGgAnalyze extends Mock implements gg.Analyze {}
 
 /// Mock for gg DoPush
 class MockGgDoPush extends Mock implements gg.DoPush {}
@@ -486,7 +483,7 @@ void main() {
       final mockLocalizeRefs = MockLocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -759,7 +756,7 @@ void main() {
       final mockLocalizeRefs = MockLocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -972,7 +969,7 @@ void main() {
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       when(
         () => mockProcessRunner(
@@ -1182,7 +1179,7 @@ void main() {
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
         final mockProcessRunner = MockProcessRunner();
-        _stubPubUpgrade(mockProcessRunner);
+        _stubPubGet(mockProcessRunner);
         _stubRepoSnapshot(mockProcessRunner);
         final mockCanPublishCommand = MockCanPublishCommand();
         final mockDidReviewCommand = MockDidReviewCommand();
@@ -1352,7 +1349,7 @@ void main() {
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -1550,7 +1547,7 @@ void main() {
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -1745,7 +1742,7 @@ void main() {
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -1928,7 +1925,7 @@ void main() {
       final mockGgDoPublish = MockGgDoPublish();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -2024,7 +2021,7 @@ void main() {
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
         final mockProcessRunner = MockProcessRunner();
-        _stubPubUpgrade(mockProcessRunner);
+        _stubPubGet(mockProcessRunner);
         _stubRepoSnapshot(mockProcessRunner);
         final mockCanPublishCommand = MockCanPublishCommand();
         final mockDidReviewCommand = MockDidReviewCommand();
@@ -2234,7 +2231,7 @@ void main() {
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -2407,7 +2404,7 @@ void main() {
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -2563,7 +2560,7 @@ void main() {
         final mockUnlocalizeRefs = MockUnlocalizeRefs();
         final mockSortedProcessingList = MockSortedProcessingList();
         final mockProcessRunner = MockProcessRunner();
-        _stubPubUpgrade(mockProcessRunner);
+        _stubPubGet(mockProcessRunner);
         _stubRepoSnapshot(mockProcessRunner);
         final mockCanPublishCommand = MockCanPublishCommand();
         final mockDidReviewCommand = MockDidReviewCommand();
@@ -2736,7 +2733,7 @@ void main() {
       final mockUnlocalizeRefs = MockUnlocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -2908,7 +2905,7 @@ void main() {
       final mockRestorePublishTo = MockRestorePublishTo();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -3062,7 +3059,7 @@ void main() {
       final mockRestorePublishTo = MockRestorePublishTo();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -3177,19 +3174,17 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      // Stub `dart pub upgrade` so it fails with non-zero exit code.
+      // Stub `dart pub get` so it fails with non-zero exit code.
       when(
         () => mockProcessRunner('dart', [
           'pub',
-          'upgrade',
+          'get',
         ], workingDirectory: any(named: 'workingDirectory')),
-      ).thenAnswer(
-        (_) async => ProcessResult(0, 1, '', 'pub upgrade exploded'),
-      );
+      ).thenAnswer((_) async => ProcessResult(0, 1, '', 'pub get exploded'));
 
       // Give the run resumable progress: A failed and already carries
-      // gg_one step progress, so the upgrade step is skipped and the
-      // Dart refresh of _changeRefsToPubDev runs instead.
+      // gg_one step progress, so the analysis is skipped — the Dart refresh
+      // of _changeRefsToPubDev runs on every path.
       Directory(path.join(ticketDir.path, '.gg')).createSync(recursive: true);
       File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
           .writeAsStringSync(
@@ -3240,7 +3235,7 @@ void main() {
           isA<Exception>().having(
             (e) => rmControls(e.toString()),
             'message',
-            contains('Failed to execute dart pub upgrade in A'),
+            contains('Failed to execute dart pub get in A'),
           ),
         ),
       );
@@ -3260,7 +3255,7 @@ void main() {
     });
 
     test(
-      'runs npm install for typescript repos instead of dart pub upgrade',
+      'runs npm install for typescript repos instead of dart pub get',
       () async {
         // Swap pubspec for package.json+tsconfig so A becomes typescript.
         File(path.join(ticketDir.path, 'A', 'pubspec.yaml')).deleteSync();
@@ -3434,7 +3429,7 @@ void main() {
         verifyNever(
           () => mockProcessRunner('dart', [
             'pub',
-            'upgrade',
+            'get',
           ], workingDirectory: any(named: 'workingDirectory')),
         );
       },
@@ -3581,7 +3576,7 @@ void main() {
       verifyNever(
         () => mockProcessRunner('dart', [
           'pub',
-          'upgrade',
+          'get',
         ], workingDirectory: any(named: 'workingDirectory')),
       );
       verifyNever(
@@ -3594,10 +3589,10 @@ void main() {
       );
     });
 
-    test('runs npm install for bridge repos — the Dart side is resolved by '
-        'the upgrade step, not by a duplicate refresh', () async {
+    test('refreshes both sides of a bridge repo — npm install and dart pub '
+        'get', () async {
       // Keep pubspec.yaml AND add package.json + tsconfig -> A is a bridge:
-      // node_modules refresh via npm, pubspec.lock via »do upgrade deps«.
+      // node_modules refresh via npm, pubspec.lock via »dart pub get«.
       File(path.join(ticketDir.path, 'A', 'package.json'))
           .writeAsStringSync(jsonEncode(<String, dynamic>{'name': 'A'}));
       File(path.join(ticketDir.path, 'A', 'tsconfig.json'))
@@ -3612,7 +3607,7 @@ void main() {
       final mockProcessRunner = MockProcessRunner();
       _stubRepoSnapshot(mockProcessRunner);
       // The workspace restore resolves the Dart side of the bridge.
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
       final mockGetVersion = MockGetVersion();
@@ -3684,7 +3679,7 @@ void main() {
       when(
         () => mockProcessRunner(
           'dart',
-          ['pub', 'upgrade'],
+          ['pub', 'get'],
           workingDirectory: repoADir.path,
           environment: any(named: 'environment'),
         ),
@@ -3759,10 +3754,9 @@ void main() {
 
       await runner.run(['publish', '--input', ticketDir.path]);
 
-      // The pre-publish refresh handles the TypeScript install only (the
-      // Dart side is covered by the upgrade step); the workspace restore
-      // after the publish installs the TypeScript side again and resolves
-      // the Dart side once.
+      // The pre-publish refresh installs the TypeScript side and resolves
+      // the Dart side; the workspace restore after the publish does both
+      // again.
       final captured = verify(
         () => mockProcessRunner(
           'npm',
@@ -3779,17 +3773,17 @@ void main() {
       verify(
         () => mockProcessRunner(
           'dart',
-          ['pub', 'upgrade'],
+          ['pub', 'get'],
           workingDirectory: repoADir.path,
           environment: any(named: 'environment'),
         ),
-      ).called(1);
+      ).called(2);
     });
 
     test('refreshes BOTH sides of a bridge repo on a resume with step '
-        'progress — the path where the upgrade step is skipped', () async {
+        'progress — the path where the analysis is skipped', () async {
       // Keep pubspec.yaml AND add package.json + tsconfig -> A is a bridge:
-      // node_modules refresh via npm, pubspec.lock via »do upgrade deps«.
+      // node_modules refresh via npm, pubspec.lock via »dart pub get«.
       File(path.join(ticketDir.path, 'A', 'package.json'))
           .writeAsStringSync(jsonEncode(<String, dynamic>{'name': 'A'}));
       File(path.join(ticketDir.path, 'A', 'tsconfig.json'))
@@ -3874,7 +3868,7 @@ void main() {
       when(
         () => mockProcessRunner(
           'dart',
-          ['pub', 'upgrade'],
+          ['pub', 'get'],
           workingDirectory: repoADir.path,
           environment: any(named: 'environment'),
         ),
@@ -3973,9 +3967,9 @@ void main() {
 
       await runner.run(['publish', '--input', ticketDir.path, '--continue']);
 
-      // On this path the upgrade step is skipped, so the pre-publish
-      // refresh covers BOTH sides: the TypeScript install (with the pnpm
-      // env override) AND the Dart pubspec.lock via dart pub upgrade. The
+      // On this path the analysis is skipped, the pre-publish refresh
+      // covers BOTH sides all the same: the TypeScript install (with the
+      // pnpm env override) AND the Dart pubspec.lock via dart pub get. The
       // second call of each is the workspace restore after the publish.
       final captured = verify(
         () => mockProcessRunner(
@@ -3993,7 +3987,7 @@ void main() {
       verify(
         () => mockProcessRunner(
           'dart',
-          ['pub', 'upgrade'],
+          ['pub', 'get'],
           workingDirectory: repoADir.path,
           environment: any(named: 'environment'),
         ),
@@ -4163,7 +4157,7 @@ void main() {
       ).thenAnswer((_) async {});
       when(() => mockGetVersion.get(directory: any(named: 'directory')))
           .thenAnswer((_) async => '1.0.0');
-      _stubPubUpgrade(m);
+      _stubPubGet(m);
 
       // Baseline git behaviour: clean repo on the feature branch with an
       // unchanged main. Individual tests override what their scenario needs.
@@ -5416,7 +5410,7 @@ void main() {
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockSortedProcessingList = MockSortedProcessingList();
       mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       mockCanPublishCommand = MockCanPublishCommand();
       mockDidReviewCommand = MockDidReviewCommand();
@@ -6330,7 +6324,7 @@ void main() {
       mockUnlocalizeRefs = MockUnlocalizeRefs();
       mockSortedProcessingList = MockSortedProcessingList();
       mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       mockCanPublishCommand = MockCanPublishCommand();
       mockDidReviewCommand = MockDidReviewCommand();
@@ -7412,7 +7406,7 @@ void main() {
       mockRestorePublishTo = MockRestorePublishTo();
       mockSortedProcessingList = MockSortedProcessingList();
       mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       // The ticket is trashed after a merge too, remote branches included.
       when(
@@ -7959,8 +7953,7 @@ void main() {
     late MockSetRefVersion mockSetRefVersion;
     late MockGetRefVersion mockGetRefVersion;
     late MockPubDevChecker mockPubDevChecker;
-    late MockGgDoUpgradeDeps mockUpgradeDeps;
-    late MockGgCanCommit mockGgCanCommit;
+    late MockGgAnalyze mockGgAnalyze;
 
     /// Every call the ordering assertions care about, in the order it
     /// happened, as `<step>:<repo>`.
@@ -7979,7 +7972,7 @@ void main() {
       mockRestorePublishTo = MockRestorePublishTo();
       mockSortedProcessingList = MockSortedProcessingList();
       mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       when(
         () => mockProcessRunner('git', [
@@ -8037,21 +8030,13 @@ void main() {
         ),
       ).thenAnswer((i) async => calls.add('unlocalize:${repoOf(i)}'));
 
-      mockUpgradeDeps = MockGgDoUpgradeDeps();
+      mockGgAnalyze = MockGgAnalyze();
       when(
-        () => mockUpgradeDeps.exec(
+        () => mockGgAnalyze.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
         ),
-      ).thenAnswer((i) async => calls.add('upgrade:${repoOf(i)}'));
-
-      mockGgCanCommit = MockGgCanCommit();
-      when(
-        () => mockGgCanCommit.exec(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
-        ),
-      ).thenAnswer((i) async => calls.add('cancommit:${repoOf(i)}'));
+      ).thenAnswer((i) async => calls.add('analyze:${repoOf(i)}'));
 
       when(
         () => mockSystemCommit.commit(
@@ -8157,8 +8142,7 @@ void main() {
             setRefVersionCommand: mockSetRefVersion,
             getRefVersionCommand: mockGetRefVersion,
             pubDevChecker: mockPubDevChecker,
-            ggDoUpgradeDeps: mockUpgradeDeps,
-            ggCanCommit: mockGgCanCommit,
+            ggAnalyze: mockGgAnalyze,
           ),
         );
 
@@ -8272,8 +8256,7 @@ void main() {
           setRefVersionCommand: mockSetRefVersion,
           getRefVersionCommand: mockGetRefVersion,
           pubDevChecker: mockPubDevChecker,
-          ggDoUpgradeDeps: mockUpgradeDeps,
-          ggCanCommit: mockGgCanCommit,
+          ggAnalyze: mockGgAnalyze,
         ).exec(
           directory: ticketDir,
           ggLog: ggLog,
@@ -8387,16 +8370,15 @@ void main() {
         'dependencies were published', () async {
       await buildRunner().run(['publish', '--input', ticketDir.path]);
 
-      // Within a repo: after the refs point at the registry, the
-      // dependencies are upgraded and the repo is re-verified with
-      // `gg can commit` before the bookkeeping commit sweeps everything up;
-      // the gate sits between the force-commit and the push.
+      // Within a repo: after the refs point at the registry and the
+      // dependencies are resolved, the repo is analyzed before the
+      // bookkeeping commit sweeps everything up; the gate sits between the
+      // force-commit and the push.
       expect(
         calls,
         containsAllInOrder([
           'unlocalize:B',
-          'upgrade:B',
-          'cancommit:B',
+          'analyze:B',
           'commit:B',
           'gate:B',
           'push:B',
@@ -8482,18 +8464,16 @@ void main() {
       );
     });
 
-    test('a failing upgrade fails the repo like a rejected gate', () async {
+    test('a failing dependency resolution fails the repo like a rejected '
+        'gate', () async {
       when(
-        () => mockUpgradeDeps.exec(
-          directory: any(named: 'directory'),
-          ggLog: any(named: 'ggLog'),
+        () => mockProcessRunner(
+          'dart',
+          ['pub', 'get'],
+          workingDirectory: path.join(ticketDir.path, 'B'),
+          environment: any(named: 'environment'),
         ),
-      ).thenAnswer((i) async {
-        calls.add('upgrade:${repoOf(i)}');
-        if (repoOf(i) == 'B') {
-          throw Exception('Failed to upgrade.');
-        }
-      });
+      ).thenAnswer((_) async => ProcessResult(0, 1, '', 'version solving'));
 
       await expectLater(
         () => buildRunner().run(['publish', '--input', ticketDir.path]),
@@ -8501,22 +8481,46 @@ void main() {
           isA<Exception>().having(
             (e) => rmControls(e.toString()),
             'message',
-            contains('Failed to upgrade.'),
+            contains('Failed to execute dart pub get in B'),
           ),
         ),
       );
 
       // A got all the way through; B never reached anything irreversible.
       expect(calls, contains('publish:A'));
-      expect(calls, isNot(contains('cancommit:B')));
+      expect(calls, isNot(contains('analyze:B')));
       expect(calls, isNot(contains('gate:B')));
       expect(calls, isNot(contains('push:B')));
       expect(calls, isNot(contains('publish:B')));
     });
 
-    test('tells gg_one not to upgrade again', () async {
-      // This loop upgraded every repo itself, in dependency order — gg_one
-      // repeating it per repo would only resolve the same repo twice.
+    test('resolves the dependencies and upgrades none', () async {
+      await buildRunner().run(['publish', '--input', ticketDir.path]);
+
+      // Before the publish and in the workspace restore after it, per repo.
+      for (final repo in ['A', 'B']) {
+        verify(
+          () => mockProcessRunner(
+            'dart',
+            ['pub', 'get'],
+            workingDirectory: path.join(ticketDir.path, repo),
+            environment: any(named: 'environment'),
+          ),
+        ).called(2);
+      }
+      verifyNever(
+        () => mockProcessRunner(
+          'dart',
+          any(that: contains('upgrade')),
+          workingDirectory: any(named: 'workingDirectory'),
+          environment: any(named: 'environment'),
+        ),
+      );
+    });
+
+    test('tells gg_one not to upgrade', () async {
+      // A publish resolves, it does not upgrade — gg_one's own publish must
+      // not upgrade either.
       await buildRunner().run(['publish', '--input', ticketDir.path]);
 
       verify(
@@ -8539,16 +8543,16 @@ void main() {
       ).called(2);
     });
 
-    test('a failing can commit fails the repo like a rejected gate', () async {
+    test('a failing analysis fails the repo like a rejected gate', () async {
       when(
-        () => mockGgCanCommit.exec(
+        () => mockGgAnalyze.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
         ),
       ).thenAnswer((i) async {
-        calls.add('cancommit:${repoOf(i)}');
+        calls.add('analyze:${repoOf(i)}');
         if (repoOf(i) == 'B') {
-          throw Exception('Cannot commit.');
+          throw Exception('Analyze failed.');
         }
       });
 
@@ -8558,7 +8562,7 @@ void main() {
           isA<Exception>().having(
             (e) => rmControls(e.toString()),
             'message',
-            contains('Cannot commit.'),
+            contains('Analyze failed.'),
           ),
         ),
       );
@@ -8613,32 +8617,23 @@ void main() {
           expect(calls, isNot(contains('gate:B')));
           expect(calls, contains('publish:B'));
 
-          // The same holds for the upgrade + can-commit validation: it must
-          // not touch a mid-publish state.
-          expect(calls, contains('upgrade:A'));
-          expect(calls, contains('cancommit:A'));
-          expect(calls, isNot(contains('upgrade:B')));
-          expect(calls, isNot(contains('cancommit:B')));
+          // The same holds for the analysis: it must not touch a
+          // mid-publish state.
+          expect(calls, contains('analyze:A'));
+          expect(calls, isNot(contains('analyze:B')));
 
-          // The Dart refresh of _changeRefsToPubDev only runs where the
-          // upgrade step is skipped: for B (step progress), not for A. The
-          // workspace restore after each publish adds one resolve per repo.
-          verify(
-            () => mockProcessRunner(
-              'dart',
-              ['pub', 'upgrade'],
-              workingDirectory: path.join(ticketDir.path, 'B'),
-              environment: any(named: 'environment'),
-            ),
-          ).called(2);
-          verify(
-            () => mockProcessRunner(
-              'dart',
-              ['pub', 'upgrade'],
-              workingDirectory: path.join(ticketDir.path, 'A'),
-              environment: any(named: 'environment'),
-            ),
-          ).called(1);
+          // The Dart refresh of _changeRefsToPubDev runs for both repos;
+          // the workspace restore after each publish adds one more.
+          for (final repo in ['A', 'B']) {
+            verify(
+              () => mockProcessRunner(
+                'dart',
+                ['pub', 'get'],
+                workingDirectory: path.join(ticketDir.path, repo),
+                environment: any(named: 'environment'),
+              ),
+            ).called(2);
+          }
         },
       );
 
@@ -8666,9 +8661,9 @@ void main() {
       });
     });
 
-    test('constructs its upgrade and can-commit collaborators by default', () {
-      // makePublishCommand always injects mocks for the two, so the
-      // default construction is exercised here.
+    test('constructs its analysis by default', () {
+      // makePublishCommand always injects a mock for it, so the default
+      // construction is exercised here.
       expect(DoPublishCommand(ggLog: ggLog), isNotNull);
     });
   });
@@ -8712,7 +8707,7 @@ void main() {
     /// one does what [onPublish] says.
     CommandRunner<void> publishRunner(
       Map<String, List<String>> repos, {
-      MockGgCanCommit? ggCanCommit,
+      MockGgAnalyze? ggAnalyze,
     }) {
       final nodes = <Node>[
         for (final MapEntry(key: name, value: dependencies) in repos.entries)
@@ -8748,7 +8743,7 @@ void main() {
       final mockLocalizeRefs = MockLocalizeRefs();
       final mockSortedProcessingList = MockSortedProcessingList();
       final mockProcessRunner = MockProcessRunner();
-      _stubPubUpgrade(mockProcessRunner);
+      _stubPubGet(mockProcessRunner);
       _stubRepoSnapshot(mockProcessRunner);
       final mockCanPublishCommand = MockCanPublishCommand();
       final mockDidReviewCommand = MockDidReviewCommand();
@@ -8884,7 +8879,7 @@ void main() {
           setRefVersionCommand: mockSetRefVersion,
           getRefVersionCommand: mockGetRefVersion,
           pubDevChecker: mockPubDevChecker,
-          ggCanCommit: ggCanCommit,
+          ggAnalyze: ggAnalyze,
           delay: (duration) async {
             delays.add(duration);
             events.add('settle');
@@ -9125,15 +9120,15 @@ void main() {
       expect(gg.GgParallelism.heavy, 2);
       expect(gg.GgParallelism.publishes, 4);
 
-      // `gg can commit` runs the tests of a repo. A check stays until a
-      // second repo is being checked as well, and then a moment longer: a
-      // third one would show up in that time.
+      // The analysis of a repo is heavy. A check stays until a second repo
+      // is being checked as well, and then a moment longer: a third one
+      // would show up in that time.
       var checking = 0;
       var mostAtOnce = 0;
       final twoChecking = Completer<void>();
-      final mockGgCanCommit = MockGgCanCommit();
+      final mockGgAnalyze = MockGgAnalyze();
       when(
-        () => mockGgCanCommit.exec(
+        () => mockGgAnalyze.exec(
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
         ),
@@ -9151,10 +9146,12 @@ void main() {
       });
       onPublish = publishSlowly;
 
-      await publishRunner(
-        {'A': [], 'B': [], 'C': [], 'D': []},
-        ggCanCommit: mockGgCanCommit,
-      ).run(['publish', '--input', ticketDir.path]);
+      await publishRunner({
+        'A': [],
+        'B': [],
+        'C': [],
+        'D': [],
+      }, ggAnalyze: mockGgAnalyze).run(['publish', '--input', ticketDir.path]);
 
       expect(mostAtOnce, 2);
       expect(publishEvents().where((e) => e.startsWith('end')), hasLength(4));
@@ -9269,13 +9266,13 @@ void stubCanPublish(MockCanPublishCommand mock) {
   ).thenAnswer((_) async {});
 }
 
-/// Stubs `dart pub upgrade` on [runner] so it succeeds for any working
+/// Stubs `dart pub get` on [runner] so it succeeds for any working
 /// directory.
-void _stubPubUpgrade(MockProcessRunner runner) {
+void _stubPubGet(MockProcessRunner runner) {
   when(
     () => runner(
       'dart',
-      ['pub', 'upgrade'],
+      ['pub', 'get'],
       workingDirectory: any(named: 'workingDirectory'),
       environment: any(named: 'environment'),
     ),
@@ -9357,9 +9354,9 @@ void _stubRepoSnapshot(MockProcessRunner runner) {
   ).thenAnswer((_) async => ProcessResult(0, 0, '', ''));
 }
 
-/// Builds a [DoPublishCommand] whose upgrade and can-commit collaborators
-/// default to pre-stubbed mocks — otherwise every test reaching
-/// `_publishRepo` would run a real »dart pub upgrade« and real checks.
+/// Builds a [DoPublishCommand] whose analysis defaults to a pre-stubbed
+/// mock — otherwise every test reaching `_publishRepo` would run a real
+/// »dart analyze«.
 ///
 /// The post-publish collaborators (re-localization, didPublish, ticket
 /// state) default to pre-stubbed mocks as well, and [hasTerminal] defaults
@@ -9370,8 +9367,7 @@ DoPublishCommand makePublishCommand({
   required GgLog ggLog,
   bool mergeOnly = false,
   gg.GgSystemCommit? systemCommit,
-  gg.DoUpgradeDeps? ggDoUpgradeDeps,
-  gg.CanCommit? ggCanCommit,
+  gg.Analyze? ggAnalyze,
   ChangeRefsToPubDev? unlocalizeRefs,
   ChangeRefsToLocal? localizeRefs,
   RestorePublishTo? restorePublishTo,
@@ -9436,25 +9432,15 @@ DoPublishCommand makePublishCommand({
     );
     doConfigurePublishCommand = mock;
   }
-  if (ggDoUpgradeDeps == null) {
-    final mock = MockGgDoUpgradeDeps();
+  if (ggAnalyze == null) {
+    final mock = MockGgAnalyze();
     when(
       () => mock.exec(
         directory: any(named: 'directory'),
         ggLog: any(named: 'ggLog'),
       ),
     ).thenAnswer((_) async {});
-    ggDoUpgradeDeps = mock;
-  }
-  if (ggCanCommit == null) {
-    final mock = MockGgCanCommit();
-    when(
-      () => mock.exec(
-        directory: any(named: 'directory'),
-        ggLog: any(named: 'ggLog'),
-      ),
-    ).thenAnswer((_) async {});
-    ggCanCommit = mock;
+    ggAnalyze = mock;
   }
   if (localizeRefs == null) {
     final mock = MockLocalizeRefs();
@@ -9509,8 +9495,7 @@ DoPublishCommand makePublishCommand({
     ggLog: ggLog,
     mergeOnly: mergeOnly,
     systemCommit: systemCommit,
-    ggDoUpgradeDeps: ggDoUpgradeDeps,
-    ggCanCommit: ggCanCommit,
+    ggAnalyze: ggAnalyze,
     unlocalizeRefs: unlocalizeRefs,
     localizeRefs: localizeRefs,
     restorePublishTo: restorePublishTo,

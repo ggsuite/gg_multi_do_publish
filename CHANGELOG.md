@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Resolve and analyze before a publish, upgrade nothing
+
+Run dart pub get or <pm> install instead of dart pub upgrade
+Run Analyze instead of gg can commit before the release
+Replace ggDoUpgradeDeps and ggCanCommit by ggAnalyze
+
 ## 4.8.0 - 2026-11-14
 
 ### Added

@@ -437,9 +437,8 @@ class CanPublishCommand extends DirCommand<void> {
     required GgLog ggLog,
   }) async {
     try {
-      // upgrade: false — `do publish` upgrades every repo again right before
-      // it is published, after its refs point at the registry. Upgrading
-      // here as well would only run »dart pub upgrade« twice per repo.
+      // upgrade: false — a publish upgrades no dependency; new versions
+      // arrive through maintenance (`gg do maintain`).
       await _doPushCommand.exec(
         directory: ticketDir,
         ggLog: ggLog,
