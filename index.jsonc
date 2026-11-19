@@ -23,8 +23,8 @@
   "interfaces": {
     // "<repo-a>": "why / API"
     "uses": {
-      "gg_multi_core": "PublishPlanner, PublishSkipCheck, TicketState, WorkspaceUtils, cleanUpTicket",
-      "gg_multi_commit": "DidCommitCommand, DoPushCommand in can publish / do publish",
+      "gg_multi_core": "PublishPlanner, PublishSkipCheck, TicketState, WorkspaceUtils, cleanUpTicket, TicketLocalizer.addMissingBetween, AddReposBetween",
+      "gg_multi_commit": "DidCommitCommand, DoPushCommand in can publish / do publish; DoReviewCommand after adding repos between",
       "gg_one_do_publish": "waitUntilPublishedOption, uploadExclusivelyOption: the options of DoPublish",
       "gg_one": "per-repo publish: DoPublish, CanPublish, CanMerge, Analyze, NpmLoggedIn; runInParallel, GgParallelism, TaskSlots for the ticket-wide checks and the repos of a level",
       "gg_localize_refs": "UnlocalizeRefs before publish",

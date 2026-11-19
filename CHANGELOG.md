@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.9.1 - 2026-11-19
+
+### Added
+
+- Add the repos between a breaking release on publish
+
 ## 4.9.0 - 2026-11-15
 
 ### Added
