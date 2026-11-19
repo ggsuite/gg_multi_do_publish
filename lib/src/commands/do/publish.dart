@@ -102,6 +102,14 @@ class _RepoPublishSnapshot {
 ///
 /// There is no `gg do merge` command anymore — it was folded into this one, so
 /// there is exactly one flow.
+///
+/// A release that breaks its dependents needs the ocean repos between it and
+/// the ticket repos depending on it in the ticket. When they are missing —
+/// the recorded increments before the checks, or the increments of the plan
+/// after them, say so — the publish adds them with [AddReposBetween], when
+/// it is handed over, reviews the ticket again with them and starts over.
+/// Without it, the checks stop the publish.
+///
 /// Flags, in more detail than their one-line help texts carry:
 /// - `--message` is the default merge message and only takes effect when the
 ///   configuration is written interactively (a fresh run or `--restart`); it
@@ -156,7 +164,15 @@ class DoPublishCommand extends DirCommand<void> {
     this._gitRetry = const GitRetry(),
     Future<void> Function(Duration duration)? delay,
     ReadSettings? readSettings,
-  }) : _systemCommit = systemCommit ?? gg.GgSystemCommit(ggLog: ggLog),
+    TicketLocalizer? ticketLocalizer,
+    DoReviewCommand? doReviewCommand,
+    AddReposBetween? addReposBetween,
+  }) : _addBetween = addReposBetween,
+       _ticketLocalizer = ticketLocalizer ?? TicketLocalizer(ggLog: ggLog),
+       _doReviewCommand =
+           doReviewCommand ??
+           DoReviewCommand(ggLog: ggLog, addReposBetween: addReposBetween),
+       _systemCommit = systemCommit ?? gg.GgSystemCommit(ggLog: ggLog),
        _ggAnalyze = ggAnalyze ?? gg.Analyze(ggLog: ggLog),
        _unlocalizeRefs = unlocalizeRefs ?? ChangeRefsToPubDev(ggLog: ggLog),
        _localizeRefs = localizeRefs ?? ChangeRefsToLocal(ggLog: ggLog),
@@ -313,6 +329,16 @@ class DoPublishCommand extends DirCommand<void> {
   /// Reads `~/.gg_rc` — `do.publish.askTicketCleanup` decides whether the
   /// cleanup offer below is asked at all.
   final ReadSettings _readSettings;
+
+  /// Adds the repos a breaking release strands; null adds none, and the
+  /// checks stop the publish instead.
+  final AddReposBetween? _addBetween;
+
+  /// Finds the repos a breaking release strands.
+  final TicketLocalizer _ticketLocalizer;
+
+  /// Reviews the ticket again once repos were added to it.
+  final DoReviewCommand _doReviewCommand;
 
   /// Safety buffer after a level of repos, when a repo published later in
   /// the run depends on one of them, before the next level starts.
@@ -488,8 +514,29 @@ class DoPublishCommand extends DirCommand<void> {
         continueRun &&
         (subs.any((repo) => stateOf(repo.directory).status == 'published') ||
             subs.any((repo) => repoHasPublishStepProgress(repo.directory)));
+
+    /// Runs the publish again from the start, with the repos just added.
+    Future<void> startOver() => get(
+      directory: directory,
+      ggLog: ggLog,
+      verbose: verbose,
+      deleteRemoteBranch: deleteRemoteBranch,
+      mergeOnly: isMergeOnly,
+      pana: usePana,
+    );
+
     if (!resumingMidPublish) {
       await _throwUnlessReviewed(ticketDir: ticketDir, ggLog: ggLog);
+
+      // Only a reviewed state gets here: the review below adds nothing but
+      // the repos between a recorded release that breaks.
+      if (await _addReposBetweenAndReview(
+        ticketDir: ticketDir,
+        ggLog: ggLog,
+        verbose: verbose,
+      )) {
+        return startOver();
+      }
 
       try {
         await _canPublishCommand.checkTicket(
@@ -506,6 +553,15 @@ class DoPublishCommand extends DirCommand<void> {
         // publish error.
         rethrow;
       } catch (e) {
+        // The push of the checks merged the main branches in, which can put
+        // a repo between: then the check of the repos in the ticket failed.
+        if (await _addReposBetweenAndReview(
+          ticketDir: ticketDir,
+          ggLog: ggLog,
+          verbose: verbose,
+        )) {
+          return startOver();
+        }
         _cannotPublish(e, ggLog);
       }
 
@@ -538,8 +594,17 @@ class DoPublishCommand extends DirCommand<void> {
     // An increment asked only now may break what the gate of step 4 let
     // through: the repos above it must be in the ticket before anything is
     // released. The plan knows which releases break — a recorded increment
-    // of a repo it skips does not count.
+    // of a repo it skips does not count. The answers are saved above, so
+    // the run that starts over with the added repos does not ask them again.
     if (!resumingMidPublish && plan.breaking.isNotEmpty) {
+      if (await _addReposBetweenAndReview(
+        ticketDir: ticketDir,
+        ggLog: ggLog,
+        verbose: verbose,
+        breaking: plan.breaking,
+      )) {
+        return startOver();
+      }
       try {
         await _canPublishCommand.checkReposInTicket(
           ticketDir: ticketDir,
@@ -1031,15 +1096,49 @@ class DoPublishCommand extends DirCommand<void> {
     }
   }
 
+  /// Adds the ocean repos the ticket in [ticketDir] lacks between its repos
+  /// and the releases that break their dependents — [breaking], or the
+  /// recorded ones — and reviews the ticket again with them; returns whether
+  /// any was added. The added repos are not reviewed yet, so the review gate
+  /// would stop the publish without the second review. A merge releases
+  /// nothing, so nothing breaks.
+  Future<bool> _addReposBetweenAndReview({
+    required Directory ticketDir,
+    required GgLog ggLog,
+    required bool verbose,
+    Set<String>? breaking,
+  }) async {
+    if (mergeOnly) {
+      return false;
+    }
+    final added = await _ticketLocalizer.addMissingBetween(
+      ticketDir: ticketDir,
+      addReposBetween: _addBetween,
+      ggLog: ggLog,
+      breaking: breaking,
+    );
+    if (added.isEmpty) {
+      return false;
+    }
+    ggLog(addedBetweenMessage(added, before: _action));
+    await _doReviewCommand.get(
+      directory: ticketDir,
+      ggLog: ggLog,
+      verbose: verbose,
+    );
+    return true;
+  }
+
   /// Throws when the *current* ticket state was not reviewed.
   ///
-  /// Publishing does not review the ticket itself — it demands that the
-  /// state went through `gg do review` (the hash-based `didReview` state,
-  /// so a commit made after the review requires a new review before it can
-  /// be published). Delegates to `gg did review`, which checks the chain
-  /// `did commit` → `did push` → `did review` — so the most fundamental
-  /// missing step is what the user is told about (e.g. »Please run
-  /// gg do commit« instead of a generic »not reviewed«).
+  /// Publishing does not review the ticket itself — apart from the repos it
+  /// adds between a release that breaks, see [_addReposBetweenAndReview] —
+  /// it demands that the state went through `gg do review` (the hash-based
+  /// `didReview` state, so a commit made after the review requires a new
+  /// review before it can be published). Delegates to `gg did review`, which
+  /// checks the chain `did commit` → `did push` → `did review` — so the most
+  /// fundamental missing step is what the user is told about (e.g. »Please
+  /// run gg do commit« instead of a generic »not reviewed«).
   Future<void> _throwUnlessReviewed({
     required Directory ticketDir,
     required GgLog ggLog,

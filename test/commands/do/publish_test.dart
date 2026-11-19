@@ -1531,7 +1531,14 @@ void main() {
     /// a major release. [reposMissing] fails the check of the repos
     /// between, which a planned breaking release runs.
     Future<({MockGgDoPublish doPublish, MockCanPublishCommand canPublish})>
-    publishMajorA({bool reposMissing = false}) async {
+    publishMajorA({
+      bool reposMissing = false,
+      bool reviewed = true,
+      int failingTicketChecks = 0,
+      TicketLocalizer? ticketLocalizer,
+      DoReviewCommand? doReviewCommand,
+      AddReposBetween? addReposBetween,
+    }) async {
       // No per-repo override: forRepo falls back to the top-level defaults.
       File(path.join(ticketDir.path, '.gg', 'gg-publish.json'))
           .writeAsStringSync('''
@@ -1561,9 +1568,28 @@ void main() {
           directory: any(named: 'directory'),
           ggLog: any(named: 'ggLog'),
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer(
+        (_) async => reviewed ? null : throw Exception('Not reviewed yet.'),
+      );
 
       stubCanPublish(mockCanPublishCommand);
+      // The first checks fail — the push merged in an edge that put a repo
+      // between the ticket repos.
+      var ticketChecks = 0;
+      when(
+        () => mockCanPublishCommand.checkTicket(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          verbose: any(named: 'verbose'),
+          pana: any(named: 'pana'),
+          includeCanPublish: any(named: 'includeCanPublish'),
+          mergeOnly: any(named: 'mergeOnly'),
+        ),
+      ).thenAnswer(
+        (_) async => ++ticketChecks <= failingTicketChecks
+            ? throw Exception('The ticket lacks M.')
+            : null,
+      );
       if (reposMissing) {
         when(
           () => mockCanPublishCommand.checkReposInTicket(
@@ -1680,6 +1706,9 @@ void main() {
             setRefVersionCommand: mockSetRefVersion,
             getRefVersionCommand: mockGetRefVersion,
             pubDevChecker: mockPubDevChecker,
+            ticketLocalizer: ticketLocalizer,
+            doReviewCommand: doReviewCommand,
+            addReposBetween: addReposBetween,
           ),
         );
 
@@ -1733,6 +1762,181 @@ void main() {
       );
       expect(messages, contains(contains('The ticket lacks M.')));
       expect(messages, contains(contains('Please fix the issues above.')));
+    });
+
+    group('adding the repos between', () {
+      late List<Set<String>?> asked;
+      late MockDoReviewCommand review;
+
+      /// What the ticket commands are handed; the mocked localizer below
+      /// decides what is added, so it is never called.
+      Future<List<String>> neverAdds({
+        required Directory ticketDir,
+        required Set<String> releases,
+        required GgLog ggLog,
+      }) => fail('The localizer adds the repos.');
+
+      setUp(() {
+        registerFallbackValue(neverAdds);
+        asked = <Set<String>?>[];
+        review = MockDoReviewCommand();
+        when(
+          () => review.get(
+            directory: any(named: 'directory'),
+            ggLog: any(named: 'ggLog'),
+            verbose: any(named: 'verbose'),
+          ),
+        ).thenAnswer((_) async {});
+      });
+
+      /// [publishMajorA] with a localizer whose n-th search (0-based) for the
+      /// repos between adds [answer]; the releases each search was asked
+      /// about are recorded in [asked].
+      Future<({MockGgDoPublish doPublish, MockCanPublishCommand canPublish})>
+      publishAdding(
+        List<String> Function(int n) answer, {
+        bool reviewed = true,
+        int failingTicketChecks = 0,
+      }) {
+        final localizer = MockTicketLocalizer();
+        when(
+          () => localizer.addMissingBetween(
+            ticketDir: any(named: 'ticketDir'),
+            addReposBetween: any(named: 'addReposBetween'),
+            ggLog: any(named: 'ggLog'),
+            breaking: any(named: 'breaking'),
+          ),
+        ).thenAnswer((invocation) async {
+          asked.add(invocation.namedArguments[#breaking] as Set<String>?);
+          return answer(asked.length - 1);
+        });
+        return publishMajorA(
+          reviewed: reviewed,
+          failingTicketChecks: failingTicketChecks,
+          ticketLocalizer: localizer,
+          doReviewCommand: review,
+          addReposBetween: neverAdds,
+        );
+      }
+
+      /// Expects the ticket to be reviewed [times] by the publish.
+      void expectReviews(int times) {
+        Future<void> reviewed() => review.get(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          verbose: any(named: 'verbose'),
+        );
+        times == 0 ? verifyNever(reviewed) : verify(reviewed).called(times);
+      }
+
+      /// Expects A to be published once — by the run that started over.
+      void expectPublishedOnce(MockGgDoPublish doPublish) => verify(
+        () => doPublish.exec(
+          directory: any(named: 'directory'),
+          ggLog: any(named: 'ggLog'),
+          message: any(named: 'message'),
+          deleteFeatureBranch: any(named: 'deleteFeatureBranch'),
+          verbose: any(named: 'verbose'),
+          versionIncrement: any(named: 'versionIncrement'),
+          channel: any(named: 'channel'),
+          askBeforePublishing: any(named: 'askBeforePublishing'),
+          resume: any(named: 'resume'),
+          pr: any(named: 'pr'),
+          mergeOnly: any(named: 'mergeOnly'),
+          force: any(named: 'force'),
+          upgrade: any(named: 'upgrade'),
+          options: any(named: 'options'),
+        ),
+      ).called(1);
+
+      test('adds the repos a recorded breaking release lacks, reviews '
+          'again and starts over', () async {
+        final (doPublish: doPublish, canPublish: _) = await publishAdding(
+          (n) => n == 0 ? ['M'] : const [],
+        );
+
+        // The first run adds M before any check; the run starting over
+        // finds nothing missing, neither before the checks nor in the plan.
+        expect(asked, [
+          null,
+          null,
+          {'A'},
+        ]);
+        expect(
+          messages,
+          contains(
+            '⚠️ Added M to the ticket — reviewing again with it before the '
+            'publish.',
+          ),
+        );
+        expectReviews(1);
+        expectPublishedOnce(doPublish);
+      });
+
+      test('adds the repos the breaking release of the plan lacks, reviews '
+          'again and starts over', () async {
+        final (doPublish: doPublish, canPublish: canPublish) =
+            // The second search is the plan's: A breaks.
+            await publishAdding((n) => n == 1 ? ['M'] : const []);
+
+        expect(asked, [
+          null,
+          {'A'},
+          null,
+          {'A'},
+        ]);
+        expectReviews(1);
+        // The gate runs only in the run that started over.
+        verify(
+          () => canPublish.checkReposInTicket(
+            ticketDir: any(named: 'ticketDir'),
+            ggLog: any(named: 'ggLog'),
+            breaking: {'A'},
+          ),
+        ).called(1);
+        expectPublishedOnce(doPublish);
+      });
+
+      test('adds nothing before the review gate passes', () async {
+        await expectLater(
+          publishAdding((_) => ['M'], reviewed: false),
+          throwsA(isA<Exception>()),
+        );
+
+        expect(asked, isEmpty);
+        expectReviews(0);
+      });
+
+      test('adds the repos the push of the checks put between, reviews '
+          'again and starts over', () async {
+        // Only the merge of the checks brings the edge.
+        await publishAdding(
+          (n) => n == 1 ? ['M'] : const [],
+          failingTicketChecks: 1,
+        );
+
+        expect(asked, [
+          null,
+          null,
+          null,
+          {'A'},
+        ]);
+        expectReviews(1);
+      });
+
+      test('stops when the checks fail and nothing is missing', () async {
+        await expectLater(
+          publishAdding((_) => const [], failingTicketChecks: 1),
+          throwsA(
+            isA<Exception>().having(
+              (e) => rmControls('$e'),
+              'message',
+              contains('Cannot publish.'),
+            ),
+          ),
+        );
+        expect(messages, contains(contains('The ticket lacks M.')));
+      });
     });
 
     test('does not wait for dependency with publish_to none', () async {
@@ -9394,6 +9598,9 @@ DoPublishCommand makePublishCommand({
   DefaultBranch? defaultBranch,
   Future<void> Function(Duration duration)? delay,
   ReadSettings? readSettings,
+  TicketLocalizer? ticketLocalizer,
+  DoReviewCommand? doReviewCommand,
+  AddReposBetween? addReposBetween,
 }) {
   // The repositories of these tests are plain folders, so the real
   // `DefaultBranch` would find no branch at all. Unless a test brings its
@@ -9529,6 +9736,9 @@ DoPublishCommand makePublishCommand({
     gitRetry: GitRetry.example,
     delay: delay,
     readSettings: readSettings,
+    ticketLocalizer: ticketLocalizer,
+    doReviewCommand: doReviewCommand,
+    addReposBetween: addReposBetween,
   );
 }
 
