@@ -14,8 +14,8 @@ dependencies:
   gg_local_package_dependencies: ^4.2.4
   gg_localize_refs: ^5.4.0
   gg_log: ^1.2.0
-  gg_multi_commit: ^4.12.0
-  gg_multi_core: ^4.20.0
+  gg_multi_commit: ^4.12.1
+  gg_multi_core: ^4.20.2
   gg_one: ^14.4.13
   gg_one_do_publish: ^2.13.0
   gg_process: ^1.5.0
